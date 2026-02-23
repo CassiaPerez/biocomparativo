@@ -109,29 +109,31 @@ const ScientificInput = ({
   };
 
   return (
-    <div className={`flex items-center bg-white border-2 border-slate-200 rounded-xl px-4 py-3 focus-within:border-indigo-400 focus-within:ring-4 focus-within:ring-indigo-100 transition-all ${className}`}>
+    <div className={`group flex items-center bg-white border-2 border-slate-200 rounded-2xl px-4 py-4 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all shadow-sm hover:border-slate-300 ${className}`}>
       {/* Mantissa Input */}
-      <input
-        type="text"
-        value={mantissa}
-        onChange={(e) => updateParent(e.target.value, exponent)}
-        className="w-full min-w-[60px] text-3xl font-bold text-slate-800 text-right outline-none bg-transparent placeholder-slate-300"
-        placeholder="0"
-        inputMode="decimal"
-      />
+      <div className="flex-1 min-w-[80px]">
+        <input
+          type="text"
+          value={mantissa}
+          onChange={(e) => updateParent(e.target.value, exponent)}
+          className="w-full text-4xl font-bold text-slate-800 text-right outline-none bg-transparent placeholder-slate-300 tracking-tight"
+          placeholder="0"
+          inputMode="decimal"
+        />
+      </div>
       
       {/* Scientific Notation Separator */}
-      <div className="mx-2 text-xl text-slate-400 font-medium select-none">
+      <div className="mx-3 text-2xl text-slate-400 font-serif italic select-none pb-1">
         × 10
       </div>
 
       {/* Exponent Input (Elevated) */}
-      <div className="relative -top-3">
+      <div className="relative -top-4">
         <input
           type="text"
           value={exponent}
           onChange={(e) => updateParent(mantissa, e.target.value)}
-          className="w-16 text-xl font-bold text-indigo-600 outline-none bg-slate-50 border border-slate-200 rounded-lg text-center py-1 focus:bg-indigo-50 focus:border-indigo-300 transition-colors"
+          className="w-20 text-2xl font-bold text-indigo-600 outline-none bg-indigo-50/50 border-2 border-indigo-100 rounded-xl text-center py-1.5 focus:bg-white focus:border-indigo-500 transition-all shadow-sm"
           placeholder="0"
           inputMode="numeric"
         />
@@ -161,8 +163,10 @@ const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text
       const exponential = value.toExponential(2);
       const [mantissa, exponent] = exponential.split('e');
       return (
-        <span>
-          {mantissa.replace('.', ',')} × 10<sup>{exponent.replace('+', '')}</sup>
+        <span className="inline-flex items-baseline">
+          <span className="text-3xl font-bold tracking-tight">{mantissa.replace('.', ',')}</span>
+          <span className="mx-2 text-xl text-slate-400 font-serif italic">× 10</span>
+          <sup className="text-xl font-bold text-indigo-600 -top-2 relative">{exponent.replace('+', '')}</sup>
         </span>
       );
     }
@@ -174,19 +178,20 @@ const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text
 
   return (
     <div className="flex flex-col">
-      <div className="flex justify-between items-center mb-1">
-        <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{label}</span>
+      <div className="flex justify-between items-center mb-2">
+        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</span>
         {isLarge && !isCurrency && (
           <button 
             onClick={() => setShowScientific(!showScientific)}
-            className="text-xs p-1 rounded hover:bg-slate-100 text-slate-400 transition-colors"
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 text-[10px] font-medium transition-colors"
             title="Alternar formato"
           >
-            {showScientific ? <Hash size={12} /> : <Calculator size={12} />}
+            {showScientific ? <Hash size={10} /> : <Calculator size={10} />}
+            <span>{showScientific ? '123' : 'SCI'}</span>
           </button>
         )}
       </div>
-      <div className={`text-xl md:text-2xl font-bold font-mono tracking-tight ${colorClass}`}>
+      <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tight' : ''} ${colorClass}`}>
         {formatValue()}
       </div>
     </div>
@@ -339,7 +344,7 @@ export default function App() {
                 <ScientificInput 
                   value={data.Concentracao_por_ml_ou_g}
                   onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:bg-white focus:border-slate-300 focus:ring-0 outline-none transition-all font-mono text-slate-700"
+                  className="w-full font-mono text-slate-700"
                   placeholder="Ex: 1e10"
                 />
               </div>
@@ -387,7 +392,7 @@ export default function App() {
               <ScientificInput 
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
-                className={`w-full px-4 py-3 border-2 rounded-xl focus:bg-white focus:ring-0 outline-none transition-all font-mono text-lg font-bold ${isCropfield ? 'bg-emerald-50 border-emerald-100 text-emerald-700 focus:border-emerald-300' : 'bg-blue-50 border-blue-100 text-blue-700 focus:border-blue-300'}`}
+                className={`w-full font-mono text-lg font-bold ${isCropfield ? 'bg-emerald-50/50 border-emerald-100 text-emerald-700 focus-within:border-emerald-400 focus-within:ring-emerald-500/10' : 'bg-blue-50/50 border-blue-100 text-blue-700 focus-within:border-blue-400 focus-within:ring-blue-500/10'}`}
                 placeholder="Calculado..."
               />
               <div className="flex flex-col mt-1 ml-1 gap-0.5">

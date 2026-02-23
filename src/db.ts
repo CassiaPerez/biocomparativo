@@ -1,26 +1,11 @@
-import Database from 'better-sqlite3';
 import { Decimal } from 'decimal.js';
 
-const db = new Database('biologicos.db');
-
-// Enable WAL mode for better concurrency
-db.pragma('journal_mode = WAL');
+// In-memory storage to replace SQLite for Bolt.new compatibility
+const db: BiologicoRecord[] = [];
+let currentId = 1;
 
 export function initDb() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS biologicos_comparativo (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      Produto TEXT NOT NULL,
-      Concentracao_por_ml_ou_g TEXT NOT NULL,
-      Dose_ha_ml_ou_g TEXT NOT NULL,
-      "Custo_R$_por_L_ou_kg" TEXT NOT NULL,
-      UFC_ou_conidios_ha TEXT NOT NULL,
-      UFC_ou_conidios_mm2_superficie TEXT NOT NULL,
-      "Custo_R$_por_ha" TEXT NOT NULL,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
+  console.log('Initialized in-memory database');
 }
 
 export interface BiologicoInput {
@@ -64,74 +49,48 @@ export const BiologicosModel = {
   create: (input: BiologicoInput): BiologicoRecord => {
     const calculated = calculateFields(input);
     
-    const stmt = db.prepare(`
-      INSERT INTO biologicos_comparativo (
-        Produto, 
-        Concentracao_por_ml_ou_g, 
-        Dose_ha_ml_ou_g, 
-        "Custo_R$_por_L_ou_kg",
-        UFC_ou_conidios_ha,
-        UFC_ou_conidios_mm2_superficie,
-        "Custo_R$_por_ha"
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    const record: BiologicoRecord = {
+      id: currentId++,
+      ...input,
+      ...calculated,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
 
-    const info = stmt.run(
-      input.Produto,
-      String(input.Concentracao_por_ml_ou_g),
-      String(input.Dose_ha_ml_ou_g),
-      String(input["Custo_R$_por_L_ou_kg"]),
-      calculated.UFC_ou_conidios_ha,
-      calculated.UFC_ou_conidios_mm2_superficie,
-      calculated["Custo_R$_por_ha"]
-    );
-
-    return BiologicosModel.getById(info.lastInsertRowid as number)!;
+    db.push(record);
+    return record;
   },
 
   update: (id: number, input: BiologicoInput): BiologicoRecord | undefined => {
+    const index = db.findIndex(r => r.id === id);
+    if (index === -1) return undefined;
+
     const calculated = calculateFields(input);
     
-    const stmt = db.prepare(`
-      UPDATE biologicos_comparativo SET
-        Produto = ?,
-        Concentracao_por_ml_ou_g = ?,
-        Dose_ha_ml_ou_g = ?,
-        "Custo_R$_por_L_ou_kg" = ?,
-        UFC_ou_conidios_ha = ?,
-        UFC_ou_conidios_mm2_superficie = ?,
-        "Custo_R$_por_ha" = ?,
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
-    `);
+    const updatedRecord: BiologicoRecord = {
+      ...db[index],
+      ...input,
+      ...calculated,
+      updated_at: new Date().toISOString()
+    };
 
-    const info = stmt.run(
-      input.Produto,
-      String(input.Concentracao_por_ml_ou_g),
-      String(input.Dose_ha_ml_ou_g),
-      String(input["Custo_R$_por_L_ou_kg"]),
-      calculated.UFC_ou_conidios_ha,
-      calculated.UFC_ou_conidios_mm2_superficie,
-      calculated["Custo_R$_por_ha"],
-      id
-    );
-
-    if (info.changes === 0) return undefined;
-    return BiologicosModel.getById(id);
+    db[index] = updatedRecord;
+    return updatedRecord;
   },
 
   getById: (id: number): BiologicoRecord | undefined => {
-    const stmt = db.prepare('SELECT * FROM biologicos_comparativo WHERE id = ?');
-    return stmt.get(id) as BiologicoRecord | undefined;
+    return db.find(r => r.id === id);
   },
 
   getByProduto: (produto: string): BiologicoRecord | undefined => {
-    const stmt = db.prepare('SELECT * FROM biologicos_comparativo WHERE Produto = ? ORDER BY created_at DESC LIMIT 1');
-    return stmt.get(produto) as BiologicoRecord | undefined;
+    // Sort by created_at desc (newest first)
+    const records = db.filter(r => r.Produto === produto)
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return records[0];
   },
 
   getAll: (limit = 50, offset = 0): BiologicoRecord[] => {
-    const stmt = db.prepare('SELECT * FROM biologicos_comparativo ORDER BY created_at DESC LIMIT ? OFFSET ?');
-    return stmt.all(limit, offset) as BiologicoRecord[];
+    return db.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+             .slice(offset, offset + limit);
   }
 };

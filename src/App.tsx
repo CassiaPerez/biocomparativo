@@ -213,7 +213,7 @@ export default function App() {
 
       const ufcHa = conc.times(dose);
       const custoHa = dose.times(custo).dividedBy(1000);
-      const ufcMm2 = ufcHa.dividedBy(10000);
+      const ufcMm2 = ufcHa.dividedBy(10000000000);
 
       return {
         UFC_ou_conidios_ha: ufcHa,
@@ -412,7 +412,7 @@ export default function App() {
                 colorClass={isCropfield ? "text-emerald-600" : "text-blue-600"}
               />
               <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                Fórmula: UFC/ha ÷ 10.000
+                Fórmula: UFC/ha ÷ 10.000.000.000
               </p>
             </div>
 
@@ -513,27 +513,62 @@ export default function App() {
               </div>
             </div>
 
-            {/* UFC Diff */}
+            {/* UFC Diff (Ratio) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença UFC / ha</span>
-              <div className={`text-xl font-bold font-mono mb-2 ${diffUfcHa.lt(0) ? 'text-red-500' : diffUfcHa.gt(0) ? 'text-emerald-500' : 'text-slate-700'}`}>
-                {formatDiff(diffUfcHa)}
-              </div>
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                {diffUfcHa.gt(0) ? (
+              {(() => {
+                const cropUfc = cropCalculated.UFC_ou_conidios_ha;
+                const compUfc = compCalculated.UFC_ou_conidios_ha;
+                
+                if (cropUfc.isZero() || compUfc.isZero()) {
+                  return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
+                }
+
+                let ratio = new Decimal(1);
+                let isSuperior = false;
+                let isEqual = false;
+
+                if (compUfc.gt(cropUfc)) {
+                  ratio = compUfc.dividedBy(cropUfc);
+                  isSuperior = true;
+                } else if (compUfc.lt(cropUfc)) {
+                  ratio = cropUfc.dividedBy(compUfc);
+                  isSuperior = false;
+                } else {
+                  isEqual = true;
+                }
+
+                // Format ratio
+                const ratioVal = ratio.toNumber();
+                const formattedRatio = ratioVal >= 1000 
+                  ? ratio.toExponential(0).replace('e+', 'e') 
+                  : ratioVal >= 10 
+                    ? ratioVal.toFixed(0) 
+                    : ratioVal.toFixed(1).replace('.0', '');
+
+                return (
                   <>
-                    <TrendingUp size={16} className="text-emerald-500" />
-                    <span className="text-emerald-600">Concorrente superior</span>
+                    <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isSuperior ? 'text-emerald-500' : 'text-red-500'}`}>
+                      {isEqual ? '1x' : `${formattedRatio}x`}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      {isEqual ? (
+                        <span className="text-slate-400">Mesma concentração</span>
+                      ) : isSuperior ? (
+                        <>
+                          <TrendingUp size={16} className="text-emerald-500" />
+                          <span className="text-emerald-600">Concorrente superior</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingDown size={16} className="text-red-500" />
+                          <span className="text-red-600">Concorrente inferior</span>
+                        </>
+                      )}
+                    </div>
                   </>
-                ) : diffUfcHa.lt(0) ? (
-                  <>
-                    <TrendingDown size={16} className="text-red-500" />
-                    <span className="text-red-600">Concorrente inferior</span>
-                  </>
-                ) : (
-                  <span className="text-slate-400">Mesma concentração</span>
-                )}
-              </div>
+                );
+              })()}
             </div>
 
             {/* UFC mm2 Diff */}

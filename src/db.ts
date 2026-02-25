@@ -35,8 +35,8 @@ export function calculateFields(input: BiologicoInput) {
   // Custo_R$_por_ha = (Dose_ha_ml_ou_g * Custo_R$_por_L_ou_kg) / 1000
   const Custo_R$_por_ha = dose.times(custo).dividedBy(1000);
   
-  // UFC_ou_conidios_mm2_superficie = UFC_ou_conidios_ha / 10000000000
-  const UFC_ou_conidios_mm2_superficie = UFC_ou_conidios_ha.dividedBy(10000000000);
+  // UFC_ou_conidios_mm2_superficie = UFC_ou_conidios_ha / 1e10
+  const UFC_ou_conidios_mm2_superficie = UFC_ou_conidios_ha.dividedBy(1e10);
 
   return {
     UFC_ou_conidios_ha: UFC_ou_conidios_ha.toString(),

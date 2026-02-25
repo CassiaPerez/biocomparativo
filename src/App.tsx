@@ -50,12 +50,16 @@ const ScientificInput = ({
 }) => {
   const [mantissa, setMantissa] = useState('');
   const [exponent, setExponent] = useState('');
+  const [status, setStatus] = useState<'default' | 'error' | 'warning'>('default');
+  const [message, setMessage] = useState<string>('');
 
   // Sync state with prop value
   useEffect(() => {
     if (!value) {
       setMantissa('');
       setExponent('');
+      setStatus('default');
+      setMessage('');
       return;
     }
 
@@ -87,57 +91,115 @@ const ScientificInput = ({
         } catch(e) {}
         return e.replace('+', '');
       });
+      
+      // Reset status on external update if valid
+      setStatus('default');
+      setMessage('');
 
     } catch (e) {
-      // Invalid input, ignore
+      setStatus('error');
     }
   }, [value]);
 
-  const updateParent = (m: string, e: string) => {
-    setMantissa(m);
-    setExponent(e);
-
-    if (m === '' || m === '-' || m.endsWith('.')) return;
-    if (e === '' || e === '-') return;
+  const validateAndNotify = (m: string, e: string) => {
+    if (m === '' || m === '-') {
+        setStatus('default');
+        setMessage('');
+        return;
+    }
 
     try {
-      const val = new Decimal(`${m}e${e || '0'}`);
+      if (isNaN(Number(m))) throw new Error();
+      if (e !== '' && e !== '-' && isNaN(Number(e))) throw new Error();
+
+      const safeM = m;
+      const safeE = (e === '' || e === '-') ? '0' : e;
+      
+      const val = new Decimal(`${safeM}e${safeE}`);
+      
+      const expVal = parseInt(safeE);
+      if (Math.abs(expVal) > 50) {
+        setStatus('warning');
+        setMessage('Expoente extremo');
+      } else if (val.isNegative()) {
+        setStatus('warning');
+        setMessage('Valor negativo');
+      } else {
+        setStatus('default');
+        setMessage('');
+      }
+
       onChange(val.toString());
+
     } catch (err) {
-      // Invalid number
+      setStatus('error');
+      setMessage('Número inválido');
+    }
+  };
+
+  const handleMantissaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newM = e.target.value;
+    setMantissa(newM);
+    validateAndNotify(newM, exponent);
+  };
+
+  const handleExponentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newE = e.target.value;
+    setExponent(newE);
+    validateAndNotify(mantissa, newE);
+  };
+
+  const getStatusClasses = () => {
+    switch (status) {
+      case 'error': return '!border-red-300 !focus-within:border-red-500 !focus-within:ring-red-100';
+      case 'warning': return '!border-amber-300 !focus-within:border-amber-500 !focus-within:ring-amber-100';
+      default: return 'border-slate-200 focus-within:border-indigo-500 focus-within:ring-indigo-500/10 hover:border-slate-300';
     }
   };
 
   return (
-    <div className={`group flex items-center bg-white border-2 border-slate-200 rounded-2xl px-4 py-4 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-500/10 transition-all shadow-sm hover:border-slate-300 ${className}`}>
-      {/* Mantissa Input */}
-      <div className="flex-1 min-w-[80px]">
-        <input
-          type="text"
-          value={mantissa}
-          onChange={(e) => updateParent(e.target.value, exponent)}
-          className="w-full text-4xl font-bold text-slate-800 text-right outline-none bg-transparent placeholder-slate-300 tracking-tight"
-          placeholder="0"
-          inputMode="decimal"
-        />
-      </div>
-      
-      {/* Scientific Notation Separator */}
-      <div className="mx-3 text-2xl text-slate-400 font-serif italic select-none pb-1">
-        × 10
-      </div>
+    <div className="relative mb-6">
+        <div className={`group flex items-center bg-white border-2 rounded-2xl px-4 py-4 transition-all shadow-sm ${getStatusClasses()} ${className}`}>
+            <div className="flex-1 min-w-[80px]">
+                <input
+                type="text"
+                value={mantissa}
+                onChange={handleMantissaChange}
+                className={`w-full text-4xl font-bold text-right outline-none bg-transparent tracking-tight ${status === 'error' ? 'text-red-500' : 'text-slate-800'} placeholder-slate-300`}
+                placeholder="0"
+                inputMode="decimal"
+                />
+            </div>
+            
+            <div className="mx-3 text-2xl text-slate-400 font-serif italic select-none pb-1">
+                × 10
+            </div>
 
-      {/* Exponent Input (Elevated) */}
-      <div className="relative -top-4">
-        <input
-          type="text"
-          value={exponent}
-          onChange={(e) => updateParent(mantissa, e.target.value)}
-          className="w-20 text-2xl font-bold text-indigo-600 outline-none bg-indigo-50/50 border-2 border-indigo-100 rounded-xl text-center py-1.5 focus:bg-white focus:border-indigo-500 transition-all shadow-sm"
-          placeholder="0"
-          inputMode="numeric"
-        />
-      </div>
+            <div className="relative -top-4">
+                <input
+                type="text"
+                value={exponent}
+                onChange={handleExponentChange}
+                className={`w-24 text-2xl font-bold outline-none border-2 rounded-xl text-center py-1.5 transition-all shadow-sm ${
+                    status === 'error' 
+                    ? 'bg-red-50 border-red-200 text-red-600 focus:border-red-500' 
+                    : status === 'warning'
+                    ? 'bg-amber-50 border-amber-200 text-amber-600 focus:border-amber-500'
+                    : 'bg-indigo-50/50 border-indigo-100 text-indigo-600 focus:bg-white focus:border-indigo-500'
+                }`}
+                placeholder="0"
+                inputMode="numeric"
+                />
+            </div>
+        </div>
+        
+        {message && (
+            <div className={`absolute -bottom-5 right-2 text-[10px] font-bold uppercase tracking-wider ${
+                status === 'error' ? 'text-red-500' : 'text-amber-500'
+            }`}>
+                {message}
+            </div>
+        )}
     </div>
   );
 };
@@ -213,7 +275,7 @@ export default function App() {
 
       const ufcHa = conc.times(dose);
       const custoHa = dose.times(custo).dividedBy(1000);
-      const ufcMm2 = ufcHa.dividedBy(10000000000);
+      const ufcMm2 = ufcHa.dividedBy(1e10);
 
       return {
         UFC_ou_conidios_ha: ufcHa,
@@ -412,7 +474,7 @@ export default function App() {
                 colorClass={isCropfield ? "text-emerald-600" : "text-blue-600"}
               />
               <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                Fórmula: UFC/ha ÷ 10.000.000.000
+                Fórmula: UFC/ha ÷ 10¹⁰
               </p>
             </div>
 
@@ -490,27 +552,60 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Custo Diff */}
+            {/* Custo Diff (Ratio) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença Custo / ha</span>
-              <div className={`text-2xl font-bold font-mono mb-2 ${diffCustoHa.gt(0) ? 'text-red-500' : diffCustoHa.lt(0) ? 'text-emerald-500' : 'text-slate-700'}`}>
-                {formatDiff(diffCustoHa, true)}
-              </div>
-              <div className="flex items-center gap-1.5 text-sm font-medium">
-                {diffCustoHa.gt(0) ? (
+              {(() => {
+                const cropCusto = cropCalculated["Custo_R$_por_ha"];
+                const compCusto = compCalculated["Custo_R$_por_ha"];
+                
+                if (cropCusto.isZero() || compCusto.isZero()) {
+                   return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
+                }
+
+                let ratio = new Decimal(1);
+                let isMoreExpensive = false;
+                let isEqual = false;
+
+                if (compCusto.gt(cropCusto)) {
+                  ratio = compCusto.dividedBy(cropCusto);
+                  isMoreExpensive = true;
+                } else if (compCusto.lt(cropCusto)) {
+                  ratio = cropCusto.dividedBy(compCusto);
+                  isMoreExpensive = false;
+                } else {
+                  isEqual = true;
+                }
+
+                // Format ratio
+                const ratioVal = ratio.toNumber();
+                const formattedRatio = ratioVal >= 10 
+                    ? ratioVal.toFixed(0) 
+                    : ratioVal.toFixed(1).replace('.0', '');
+
+                return (
                   <>
-                    <TrendingUp size={16} className="text-red-500" />
-                    <span className="text-red-600">Concorrente mais caro</span>
+                    <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isMoreExpensive ? 'text-red-500' : 'text-emerald-500'}`}>
+                      {isEqual ? '1x' : `${formattedRatio}x`}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                      {isEqual ? (
+                        <span className="text-slate-400">Mesmo custo</span>
+                      ) : isMoreExpensive ? (
+                        <>
+                          <TrendingUp size={16} className="text-red-500" />
+                          <span className="text-red-600">Concorrente mais caro</span>
+                        </>
+                      ) : (
+                        <>
+                          <TrendingDown size={16} className="text-emerald-500" />
+                          <span className="text-emerald-600">Concorrente mais barato</span>
+                        </>
+                      )}
+                    </div>
                   </>
-                ) : diffCustoHa.lt(0) ? (
-                  <>
-                    <TrendingDown size={16} className="text-emerald-500" />
-                    <span className="text-emerald-600">Concorrente mais barato</span>
-                  </>
-                ) : (
-                  <span className="text-slate-400">Mesmo custo</span>
-                )}
-              </div>
+                );
+              })()}
             </div>
 
             {/* UFC Diff (Ratio) */}

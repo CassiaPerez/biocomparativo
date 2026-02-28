@@ -561,7 +561,7 @@ export default function App() {
         <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-8 z-40">
           <div className="flex items-center gap-6">
             <img 
-              src="https://storage.googleapis.com/generativeai-downloads/images/s_93_94_0.png" 
+              src="/gcf_logo.png" 
               alt="GCF Logo" 
               className="h-8 hidden md:block" 
               referrerPolicy="no-referrer"

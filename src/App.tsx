@@ -514,7 +514,7 @@ export default function App() {
           <div className="flex items-center gap-3 overflow-hidden">
             {isSidebarOpen ? (
               <img 
-                src="https://storage.googleapis.com/generativeai-downloads/images/s_93_94_0.png" 
+                src="/gcf_logo.png" 
                 alt="GCF Logo" 
                 className="h-8 invert brightness-200" 
                 referrerPolicy="no-referrer"
@@ -743,3 +743,4 @@ export default function App() {
     </div>
   );
 }
+

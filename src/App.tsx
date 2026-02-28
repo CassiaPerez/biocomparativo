@@ -552,41 +552,25 @@ export default function App() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Custo Diff (Ratio) */}
+            {/* Custo Diff (Percentage) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença Custo / ha</span>
               {(() => {
                 const cropCusto = cropCalculated["Custo_R$_por_ha"];
                 const compCusto = compCalculated["Custo_R$_por_ha"];
                 
-                if (cropCusto.isZero() || compCusto.isZero()) {
+                if (cropCusto.isZero()) {
                    return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
                 }
 
-                let ratio = new Decimal(1);
-                let isMoreExpensive = false;
-                let isEqual = false;
-
-                if (compCusto.gt(cropCusto)) {
-                  ratio = compCusto.dividedBy(cropCusto);
-                  isMoreExpensive = true;
-                } else if (compCusto.lt(cropCusto)) {
-                  ratio = cropCusto.dividedBy(compCusto);
-                  isMoreExpensive = false;
-                } else {
-                  isEqual = true;
-                }
-
-                // Format ratio
-                const ratioVal = ratio.toNumber();
-                const formattedRatio = ratioVal >= 10 
-                    ? ratioVal.toFixed(0) 
-                    : ratioVal.toFixed(1).replace('.0', '');
+                const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
+                const isMoreExpensive = diffPercent.gt(0);
+                const isEqual = diffPercent.isZero();
 
                 return (
                   <>
                     <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isMoreExpensive ? 'text-red-500' : 'text-emerald-500'}`}>
-                      {isEqual ? '1x' : `${formattedRatio}x`}
+                      {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
                     </div>
                     <div className="flex items-center gap-1.5 text-sm font-medium">
                       {isEqual ? (
@@ -608,43 +592,25 @@ export default function App() {
               })()}
             </div>
 
-            {/* UFC Diff (Ratio) */}
+            {/* UFC Diff (Percentage) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença UFC / ha</span>
               {(() => {
                 const cropUfc = cropCalculated.UFC_ou_conidios_ha;
                 const compUfc = compCalculated.UFC_ou_conidios_ha;
                 
-                if (cropUfc.isZero() || compUfc.isZero()) {
+                if (cropUfc.isZero()) {
                   return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
                 }
 
-                let ratio = new Decimal(1);
-                let isSuperior = false;
-                let isEqual = false;
-
-                if (compUfc.gt(cropUfc)) {
-                  ratio = compUfc.dividedBy(cropUfc);
-                  isSuperior = true;
-                } else if (compUfc.lt(cropUfc)) {
-                  ratio = cropUfc.dividedBy(compUfc);
-                  isSuperior = false;
-                } else {
-                  isEqual = true;
-                }
-
-                // Format ratio
-                const ratioVal = ratio.toNumber();
-                const formattedRatio = ratioVal >= 1000 
-                  ? ratio.toExponential(0).replace('e+', 'e') 
-                  : ratioVal >= 10 
-                    ? ratioVal.toFixed(0) 
-                    : ratioVal.toFixed(1).replace('.0', '');
+                const diffPercent = compUfc.minus(cropUfc).dividedBy(cropUfc).times(100);
+                const isSuperior = diffPercent.gt(0);
+                const isEqual = diffPercent.isZero();
 
                 return (
                   <>
                     <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isSuperior ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {isEqual ? '1x' : `${formattedRatio}x`}
+                      {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
                     </div>
                     <div className="flex items-center gap-1.5 text-sm font-medium">
                       {isEqual ? (
@@ -666,12 +632,27 @@ export default function App() {
               })()}
             </div>
 
-            {/* UFC mm2 Diff */}
+            {/* UFC mm2 Diff (Percentage) */}
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença UFC / mm²</span>
-              <div className={`text-xl font-bold font-mono mb-2 ${diffUfcMm2.lt(0) ? 'text-red-500' : diffUfcMm2.gt(0) ? 'text-emerald-500' : 'text-slate-700'}`}>
-                {formatDiff(diffUfcMm2)}
-              </div>
+              {(() => {
+                const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
+                const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
+                
+                if (cropUfcMm2.isZero()) {
+                  return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
+                }
+
+                const diffPercent = compUfcMm2.minus(cropUfcMm2).dividedBy(cropUfcMm2).times(100);
+                const isSuperior = diffPercent.gt(0);
+                const isEqual = diffPercent.isZero();
+
+                return (
+                  <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isSuperior ? 'text-emerald-500' : 'text-red-500'}`}>
+                    {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                  </div>
+                );
+              })()}
               <div className="text-sm text-slate-400 font-medium">
                 Superfície
               </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, ArrowRightLeft, Trash2, Hash, Calculator, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Plus, ArrowRightLeft, Trash2, Hash, Calculator, TrendingUp, TrendingDown, Minus, Leaf, LayoutDashboard, Database, Settings, Menu, X, ChevronRight, Info, AlertCircle } from 'lucide-react';
 import { Decimal } from 'decimal.js';
 
 // Types
@@ -151,27 +151,27 @@ const ScientificInput = ({
 
   const getStatusClasses = () => {
     switch (status) {
-      case 'error': return '!border-red-300 !focus-within:border-red-500 !focus-within:ring-red-100';
-      case 'warning': return '!border-amber-300 !focus-within:border-amber-500 !focus-within:ring-amber-100';
-      default: return 'border-slate-200 focus-within:border-indigo-500 focus-within:ring-indigo-500/10 hover:border-slate-300';
+      case 'error': return '!border-gcf-black/40 !focus-within:border-gcf-black/60 !focus-within:ring-gcf-black/5';
+      case 'warning': return '!border-gcf-black/20 !focus-within:border-gcf-black/40 !focus-within:ring-gcf-black/5';
+      default: return 'border-[rgba(41,44,45,0.12)] focus-within:border-gcf-green focus-within:ring-gcf-green/10 hover:border-[rgba(41,44,45,0.2)]';
     }
   };
 
   return (
     <div className="relative mb-6">
-        <div className={`group flex items-center bg-white border-2 rounded-2xl px-4 py-4 transition-all shadow-sm ${getStatusClasses()} ${className}`}>
+        <div className={`group flex items-center bg-white border rounded-[14px] px-4 py-4 transition-all shadow-sm ${getStatusClasses()} ${className}`}>
             <div className="flex-1 min-w-[80px]">
                 <input
                 type="text"
                 value={mantissa}
                 onChange={handleMantissaChange}
-                className={`w-full text-4xl font-bold text-right outline-none bg-transparent tracking-tight ${status === 'error' ? 'text-red-500' : 'text-slate-800'} placeholder-slate-300`}
+                className={`w-full text-4xl font-bold text-right outline-none bg-transparent tracking-tighter ${status === 'error' ? 'text-gcf-black/60' : 'text-gcf-black'} placeholder-gcf-black/20`}
                 placeholder="0"
                 inputMode="decimal"
                 />
             </div>
             
-            <div className="mx-3 text-2xl text-slate-400 font-serif italic select-none pb-1">
+            <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">
                 × 10
             </div>
 
@@ -180,12 +180,12 @@ const ScientificInput = ({
                 type="text"
                 value={exponent}
                 onChange={handleExponentChange}
-                className={`w-24 text-2xl font-bold outline-none border-2 rounded-xl text-center py-1.5 transition-all shadow-sm ${
+                className={`w-24 text-2xl font-bold outline-none border rounded-[12px] text-center py-1.5 transition-all shadow-sm ${
                     status === 'error' 
-                    ? 'bg-red-50 border-red-200 text-red-600 focus:border-red-500' 
+                    ? 'bg-gcf-black/5 border-gcf-black/20 text-gcf-black/60 focus:border-gcf-black/40' 
                     : status === 'warning'
-                    ? 'bg-amber-50 border-amber-200 text-amber-600 focus:border-amber-500'
-                    : 'bg-indigo-50/50 border-indigo-100 text-indigo-600 focus:bg-white focus:border-indigo-500'
+                    ? 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black/40 focus:border-gcf-black/30'
+                    : 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green focus:bg-white focus:border-gcf-green'
                 }`}
                 placeholder="0"
                 inputMode="numeric"
@@ -195,7 +195,7 @@ const ScientificInput = ({
         
         {message && (
             <div className={`absolute -bottom-5 right-2 text-[10px] font-bold uppercase tracking-wider ${
-                status === 'error' ? 'text-red-500' : 'text-amber-500'
+                status === 'error' ? 'text-gcf-black/60' : 'text-gcf-black/40'
             }`}>
                 {message}
             </div>
@@ -205,7 +205,7 @@ const ScientificInput = ({
 };
 
 // Component for displaying large numbers with toggle
-const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text-slate-800" }: { value: Decimal, label: string, isCurrency?: boolean, colorClass?: string }) => {
+const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text-gcf-black" }: { value: Decimal, label?: string, isCurrency?: boolean, colorClass?: string }) => {
   const [showScientific, setShowScientific] = useState(false);
   const isLarge = value.gte(1e9);
   const isZero = value.isZero();
@@ -226,9 +226,9 @@ const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text
       const [mantissa, exponent] = exponential.split('e');
       return (
         <span className="inline-flex items-baseline">
-          <span className="text-3xl font-bold tracking-tight">{mantissa.replace('.', ',')}</span>
-          <span className="mx-2 text-xl text-slate-400 font-serif italic">× 10</span>
-          <sup className="text-xl font-bold text-indigo-600 -top-2 relative">{exponent.replace('+', '')}</sup>
+          <span className="text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
+          <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
+          <sup className="text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
         </span>
       );
     }
@@ -240,20 +240,22 @@ const BigNumberDisplay = ({ value, label, isCurrency = false, colorClass = "text
 
   return (
     <div className="flex flex-col">
-      <div className="flex justify-between items-center mb-2">
-        <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{label}</span>
-        {isLarge && !isCurrency && (
-          <button 
-            onClick={() => setShowScientific(!showScientific)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-500 text-[10px] font-medium transition-colors"
-            title="Alternar formato"
-          >
-            {showScientific ? <Hash size={10} /> : <Calculator size={10} />}
-            <span>{showScientific ? '123' : 'SCI'}</span>
-          </button>
-        )}
-      </div>
-      <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tight' : ''} ${colorClass}`}>
+      {(label || (isLarge && !isCurrency)) && (
+        <div className="flex justify-between items-center mb-2">
+          {label && <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">{label}</span>}
+          {isLarge && !isCurrency && (
+            <button 
+              onClick={() => setShowScientific(!showScientific)}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-[8px] bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black/60 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ml-auto"
+              title="Alternar formato"
+            >
+              {showScientific ? <Hash size={10} /> : <Calculator size={10} />}
+              <span>{showScientific ? 'Normal' : 'Científica'}</span>
+            </button>
+          )}
+        </div>
+      )}
+      <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tighter' : ''} ${colorClass}`}>
         {formatValue()}
       </div>
     </div>
@@ -370,124 +372,130 @@ export default function App() {
     const isCropfield = !isCompetitor;
     
     return (
-      <div className={`flex flex-col h-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 transition-all duration-300 hover:shadow-2xl`}>
+      <div className="card-gcf h-full flex flex-col group">
         {/* Header */}
-        <div className={`px-8 py-6 bg-gradient-to-br ${isCropfield ? 'from-emerald-500 to-teal-600' : 'from-blue-500 to-indigo-600'} text-white`}>
-          <div className="flex justify-between items-center">
+        <div className={`px-8 py-8 bg-gradient-to-br ${isCropfield ? 'from-gcf-green to-[#008f4f]' : 'from-gcf-black to-[#1a1c1d]'} text-gcf-offwhite relative overflow-hidden`}>
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-transform group-hover:scale-110"></div>
+          <div className="flex justify-between items-center relative z-10">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight">{title}</h2>
-              <p className="text-white/80 text-sm mt-1 font-medium">Dados do Produto</p>
+              <h2 className="text-3xl font-bold tracking-tighter">{title}</h2>
+              <p className="text-gcf-offwhite/70 text-[10px] mt-1 font-bold uppercase tracking-[0.2em]">
+                {isCropfield ? 'Tecnologia GCF' : 'Referência de Mercado'}
+              </p>
             </div>
-            <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-              <Hash className="text-white" size={20} />
+            <div className="bg-white/20 p-3 rounded-[14px] backdrop-blur-md border border-white/20 shadow-inner">
+              {isCropfield ? <Leaf size={24} className="text-gcf-offwhite" /> : <Hash size={24} className="text-gcf-offwhite" />}
             </div>
           </div>
         </div>
 
         {/* Content */}
-        <div className="p-8 flex-1 flex flex-col gap-8">
+        <div className="p-8 flex-1 flex flex-col gap-10">
           {/* Inputs */}
-          <div className="space-y-5">
-            <div className="group">
-              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Produto</label>
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="label-gcf">Identificação do Produto</label>
               <input 
                 type="text" 
                 name="Produto"
                 value={data.Produto}
                 onChange={(e) => handleInputChange(e, isCompetitor)}
-                className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:bg-white focus:border-slate-300 focus:ring-0 outline-none transition-all font-medium text-slate-700"
-                placeholder="Nome do produto"
+                className="input-gcf"
+                placeholder="Ex: BioControl"
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Concentração (mL ou g)</label>
+            <div className="grid grid-cols-1 gap-6">
+              <div className="space-y-2">
+                <label className="label-gcf">Concentração (UFC / mL ou g)</label>
                 <ScientificInput 
                   value={data.Concentracao_por_ml_ou_g}
                   onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
-                  className="w-full font-mono text-slate-700"
+                  className="w-full font-mono text-gcf-black"
                   placeholder="Ex: 1e10"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Dose (mL ou g / ha)</label>
-                <input 
-                  type="number" 
-                  name="Dose_ha_ml_ou_g"
-                  value={data.Dose_ha_ml_ou_g}
-                  onChange={(e) => handleInputChange(e, isCompetitor)}
-                  step="any"
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:bg-white focus:border-slate-300 focus:ring-0 outline-none transition-all font-mono text-slate-700"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5 ml-1">Custo (R$ / L ou kg)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-medium">R$</span>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="label-gcf">Dose (mL ou g / ha)</label>
                   <input 
                     type="number" 
-                    name="Custo_R$_por_L_ou_kg"
-                    value={data["Custo_R$_por_L_ou_kg"]}
+                    name="Dose_ha_ml_ou_g"
+                    value={data.Dose_ha_ml_ou_g}
                     onChange={(e) => handleInputChange(e, isCompetitor)}
                     step="any"
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:bg-white focus:border-slate-300 focus:ring-0 outline-none transition-all font-mono text-slate-700"
+                    className="input-gcf font-mono"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="label-gcf">Custo (R$ / L ou kg)</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
+                    <input 
+                      type="number" 
+                      name="Custo_R$_por_L_ou_kg"
+                      value={data["Custo_R$_por_L_ou_kg"]}
+                      onChange={(e) => handleInputChange(e, isCompetitor)}
+                      step="any"
+                      className="input-gcf pl-10 font-mono"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="w-full h-px bg-slate-100"></div>
+          <div className="w-full h-px bg-gcf-black/5"></div>
 
           {/* Results */}
-          <div className="space-y-6">
+          <div className="space-y-8">
             
             {/* Editable UFC */}
-            <div className="flex flex-col">
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">UFC / ha (Alvo)</label>
-                <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded border border-slate-200">Editável</span>
+            <div className="flex flex-col space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">UFC ou Conídios / ha</span>
+                <span className="text-[9px] font-bold bg-gcf-green/10 text-gcf-green px-2 py-0.5 rounded-full border border-gcf-green/20 uppercase tracking-widest">Alvo Editável</span>
               </div>
               <ScientificInput 
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
-                className={`w-full font-mono text-lg font-bold ${isCropfield ? 'bg-emerald-50/50 border-emerald-100 text-emerald-700 focus-within:border-emerald-400 focus-within:ring-emerald-500/10' : 'bg-blue-50/50 border-blue-100 text-blue-700 focus-within:border-blue-400 focus-within:ring-blue-500/10'}`}
+                className={`w-full font-mono text-xl font-bold ${isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'}`}
                 placeholder="Calculado..."
               />
-              <div className="flex flex-col mt-1 ml-1 gap-0.5">
-                <p className="text-[10px] text-slate-400">
-                  Fórmula: Concentração × Dose
-                </p>
-                <p className="text-[10px] text-slate-400">
-                  * Alterar este valor recalcula a Dose automaticamente.
-                </p>
+              <div className="px-1 space-y-1">
+                <p className="text-[9px] text-gcf-black/40 font-bold uppercase tracking-widest">Fórmula: Concentração × Dose</p>
+                <p className="text-[9px] text-gcf-black/30 font-medium italic">* Alterar este valor recalcula a Dose automaticamente.</p>
               </div>
             </div>
             
-            <div>
-              <BigNumberDisplay 
-                value={calculated.UFC_ou_conidios_mm2_superficie} 
-                label="UFC / mm² (Superfície)" 
-                colorClass={isCropfield ? "text-emerald-600" : "text-blue-600"}
-              />
-              <p className="text-[10px] text-slate-400 mt-1 ml-1">
-                Fórmula: UFC/ha ÷ 10¹⁰
-              </p>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">UFC / mm² (Superfície)</span>
+                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">Concentração</span>
+              </div>
+              <div className="bg-gcf-black/5 p-6 rounded-[14px] border border-gcf-black/5">
+                <BigNumberDisplay 
+                  value={calculated.UFC_ou_conidios_mm2_superficie} 
+                  colorClass={isCropfield ? "text-gcf-green" : "text-gcf-black"}
+                />
+                <p className="text-[9px] text-gcf-black/40 mt-3 font-bold uppercase tracking-widest">Fórmula: UFC/ha ÷ 10¹⁰</p>
+              </div>
             </div>
 
-            <div className={`p-5 rounded-2xl ${isCropfield ? 'bg-emerald-50' : 'bg-blue-50'}`}>
-              <BigNumberDisplay 
-                value={calculated["Custo_R$_por_ha"]} 
-                label="Custo / ha" 
-                isCurrency={true}
-                colorClass={isCropfield ? "text-emerald-700" : "text-blue-700"}
-              />
-              <p className={`text-[10px] mt-1 ml-1 ${isCropfield ? 'text-emerald-600/70' : 'text-blue-600/70'}`}>
-                Fórmula: (Dose × Custo Unitário) ÷ 1.000
-              </p>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">Investimento / ha</span>
+                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">Comercial</span>
+              </div>
+              <div className={`p-6 rounded-[14px] shadow-lg ${isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'}`}>
+                <div className="text-3xl font-bold font-mono text-gcf-offwhite tracking-tighter">
+                  <span className="text-gcf-offwhite/50 text-sm mr-2">R$</span>
+                  {calculated["Custo_R$_por_ha"].toFixed(2).replace('.', ',')}
+                </div>
+                <p className="text-[9px] text-gcf-offwhite/50 mt-3 font-bold uppercase tracking-widest">Fórmula: (Dose × Custo) ÷ 1.000</p>
+              </div>
             </div>
           </div>
         </div>
@@ -495,172 +503,243 @@ export default function App() {
     );
   };
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 selection:bg-indigo-100 selection:text-indigo-900">
+    <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden">
       
-      {/* Navbar */}
-      <nav className="bg-white border-b border-slate-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-slate-900 p-2 rounded-lg text-white">
-              <Calculator size={20} />
-            </div>
-            <span className="font-bold text-lg tracking-tight text-slate-900">BioCompare</span>
+      {/* Sidebar */}
+      <aside className={`bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+        <div className="h-20 flex items-center px-6 border-b border-white/5">
+          <div className="flex items-center gap-3 overflow-hidden">
+            {isSidebarOpen ? (
+              <img 
+                src="https://storage.googleapis.com/generativeai-downloads/images/s_93_94_0.png" 
+                alt="GCF Logo" 
+                className="h-8 invert brightness-200" 
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="bg-gcf-green p-2 rounded-[10px] text-gcf-offwhite shrink-0">
+                <Leaf size={20} />
+              </div>
+            )}
           </div>
+        </div>
+
+        <nav className="flex-1 py-6 px-4 space-y-2">
+          {[
+            { icon: LayoutDashboard, label: 'Comparativo', active: true },
+          ].map((item, idx) => (
+            <button 
+              key={idx}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-[12px] transition-all group ${
+                item.active 
+                ? 'bg-gcf-green text-gcf-offwhite shadow-lg shadow-gcf-green/20' 
+                : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
+              }`}
+            >
+              <item.icon size={20} className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'} />
+              {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-white/5">
           <button 
-            onClick={clearAll}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="w-full flex items-center justify-center p-3 rounded-[12px] bg-white/5 hover:bg-white/10 transition-all"
           >
-            <Trash2 size={16} />
-            <span>Limpar</span>
+            {isSidebarOpen ? <Minus size={16} /> : <Plus size={16} />}
           </button>
         </div>
-      </nav>
+      </aside>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
-        
-        <div className="text-center mb-12">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
-            Comparativo de Biológicos
-          </h1>
-          <p className="text-lg text-slate-500 max-w-2xl mx-auto">
-            Analise a eficiência e o custo-benefício entre produtos agrícolas com precisão decimal.
-          </p>
-        </div>
-
-        {/* Comparison Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-8 z-40">
+          <div className="flex items-center gap-6">
+            <img 
+              src="https://storage.googleapis.com/generativeai-downloads/images/s_93_94_0.png" 
+              alt="GCF Logo" 
+              className="h-8 hidden md:block" 
+              referrerPolicy="no-referrer"
+            />
+            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
+            <div className="flex items-center gap-4">
+              <h2 className="font-bold text-gcf-black tracking-tight">Comparativo de Biológicos</h2>
+              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">v2.0</span>
+            </div>
+          </div>
           
-          {/* VS Badge (Desktop) */}
-          <div className="hidden lg:flex absolute left-1/2 top-1/3 -translate-x-1/2 -translate-y-1/2 z-10 bg-white p-3 rounded-full shadow-xl border border-slate-100 text-slate-400 font-black text-xl">
-            VS
-          </div>
-
-          {renderProductColumn('Cropfield', cropData, cropCalculated, false)}
-          {renderProductColumn('Concorrente', compData, compCalculated, true)}
-        </div>
-
-        {/* Differences Section */}
-        <div className="mt-16">
-          <div className="flex items-center gap-4 mb-8">
-            <div className="h-px flex-1 bg-slate-200"></div>
-            <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <ArrowRightLeft className="text-slate-400" size={20} />
-              Análise de Diferenças
-            </h3>
-            <div className="h-px flex-1 bg-slate-200"></div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Custo Diff (Percentage) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença Custo / ha</span>
-              {(() => {
-                const cropCusto = cropCalculated["Custo_R$_por_ha"];
-                const compCusto = compCalculated["Custo_R$_por_ha"];
-                
-                if (cropCusto.isZero()) {
-                   return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
-                }
-
-                const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
-                const isMoreExpensive = diffPercent.gt(0);
-                const isEqual = diffPercent.isZero();
-
-                return (
-                  <>
-                    <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isMoreExpensive ? 'text-red-500' : 'text-emerald-500'}`}>
-                      {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm font-medium">
-                      {isEqual ? (
-                        <span className="text-slate-400">Mesmo custo</span>
-                      ) : isMoreExpensive ? (
-                        <>
-                          <TrendingUp size={16} className="text-red-500" />
-                          <span className="text-red-600">Concorrente mais caro</span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown size={16} className="text-emerald-500" />
-                          <span className="text-emerald-600">Concorrente mais barato</span>
-                        </>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* UFC Diff (Percentage) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença UFC / ha</span>
-              {(() => {
-                const cropUfc = cropCalculated.UFC_ou_conidios_ha;
-                const compUfc = compCalculated.UFC_ou_conidios_ha;
-                
-                if (cropUfc.isZero()) {
-                  return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
-                }
-
-                const diffPercent = compUfc.minus(cropUfc).dividedBy(cropUfc).times(100);
-                const isSuperior = diffPercent.gt(0);
-                const isEqual = diffPercent.isZero();
-
-                return (
-                  <>
-                    <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isSuperior ? 'text-emerald-500' : 'text-red-500'}`}>
-                      {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
-                    </div>
-                    <div className="flex items-center gap-1.5 text-sm font-medium">
-                      {isEqual ? (
-                        <span className="text-slate-400">Mesma concentração</span>
-                      ) : isSuperior ? (
-                        <>
-                          <TrendingUp size={16} className="text-emerald-500" />
-                          <span className="text-emerald-600">Concorrente superior</span>
-                        </>
-                      ) : (
-                        <>
-                          <TrendingDown size={16} className="text-red-500" />
-                          <span className="text-red-600">Concorrente inferior</span>
-                        </>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            {/* UFC mm2 Diff (Percentage) */}
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center text-center">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Diferença UFC / mm²</span>
-              {(() => {
-                const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
-                const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
-                
-                if (cropUfcMm2.isZero()) {
-                  return <div className="text-xl font-bold font-mono mb-2 text-slate-400">-</div>;
-                }
-
-                const diffPercent = compUfcMm2.minus(cropUfcMm2).dividedBy(cropUfcMm2).times(100);
-                const isSuperior = diffPercent.gt(0);
-                const isEqual = diffPercent.isZero();
-
-                return (
-                  <div className={`text-3xl font-bold font-mono mb-2 ${isEqual ? 'text-slate-700' : isSuperior ? 'text-emerald-500' : 'text-red-500'}`}>
-                    {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
-                  </div>
-                );
-              })()}
-              <div className="text-sm text-slate-400 font-medium">
-                Superfície
+          <div className="flex items-center gap-6">
+            <button 
+              onClick={clearAll}
+              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+            >
+              <Trash2 size={14} />
+              <span>Limpar Dados</span>
+            </button>
+            <div className="h-8 w-px bg-gcf-black/10"></div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
+                <AlertCircle size={20} />
               </div>
             </div>
           </div>
-        </div>
+        </header>
 
-      </main>
+        <main className="flex-1 overflow-y-auto p-8 md:p-12">
+          <div className="max-w-7xl mx-auto">
+            
+            <div className="mb-16">
+              <h1 className="text-5xl font-bold text-gcf-black tracking-tighter mb-4">
+                Análise de <span className="text-gcf-green">Eficiência</span>
+              </h1>
+              <p className="text-lg text-gcf-black/40 max-w-2xl font-medium">
+                Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
+              </p>
+            </div>
+
+            {/* Comparison Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
+              
+              {/* VS Badge (Desktop) */}
+              <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gcf-offwhite p-4 rounded-full shadow-xl border border-gcf-black/5 text-gcf-black/20 font-black text-2xl tracking-tighter">
+                VS
+              </div>
+
+              {renderProductColumn('Cropfield', cropData, cropCalculated, false)}
+              {renderProductColumn('Concorrente', compData, compCalculated, true)}
+            </div>
+
+            {/* Differences Section */}
+            <div className="mt-24">
+              <div className="flex items-center gap-6 mb-12">
+                <div className="h-px flex-1 bg-gcf-black/10"></div>
+                <div className="flex items-center gap-3 px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
+                  <ArrowRightLeft className="text-gcf-green" size={20} />
+                  <h3 className="text-lg font-bold text-gcf-black uppercase tracking-tighter">
+                    Análise de Diferenças
+                  </h3>
+                </div>
+                <div className="h-px flex-1 bg-gcf-black/10"></div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="bg-gcf-green p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
+                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
+                  {(() => {
+                    const cropCusto = cropCalculated["Custo_R$_por_ha"];
+                    const compCusto = compCalculated["Custo_R$_por_ha"];
+                    
+                    if (cropCusto.isZero()) {
+                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>;
+                    }
+
+                    const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
+                    const isMoreExpensive = diffPercent.gt(0);
+                    const isEqual = diffPercent.isZero();
+
+                    return (
+                      <>
+                        <div className={`text-6xl font-bold font-mono mb-6 relative z-10 text-gcf-offwhite tracking-tighter`}>
+                          {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                        </div>
+                        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-bold text-gcf-offwhite relative z-10 border border-white/10 uppercase tracking-widest">
+                          {isEqual ? (
+                            <span>Mesmo custo</span>
+                          ) : isMoreExpensive ? (
+                            <>
+                              <TrendingUp size={14} className="text-gcf-offwhite/60" />
+                              <span>Concorrente mais caro</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown size={14} className="text-gcf-offwhite" />
+                              <span>Concorrente mais barato</span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* UFC Diff (Percentage) */}
+                <div className="bg-white p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
+                  {(() => {
+                    const cropUfc = cropCalculated.UFC_ou_conidios_ha;
+                    const compUfc = compCalculated.UFC_ou_conidios_ha;
+                    
+                    if (cropUfc.isZero()) {
+                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                    }
+
+                    const diffPercent = compUfc.minus(cropUfc).dividedBy(cropUfc).times(100);
+                    const isSuperior = diffPercent.gt(0);
+                    const isEqual = diffPercent.isZero();
+
+                    return (
+                      <>
+                        <div className={`text-6xl font-bold font-mono mb-6 tracking-tighter ${isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'}`}>
+                          {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                        </div>
+                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${isEqual ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10' : isSuperior ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20' : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'}`}>
+                          {isEqual ? (
+                            <span>Mesma concentração</span>
+                          ) : isSuperior ? (
+                            <>
+                              <TrendingUp size={14} />
+                              <span>Concorrente superior</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown size={14} />
+                              <span>Concorrente inferior</span>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* UFC mm2 Diff (Percentage) */}
+                <div className="bg-white p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
+                  {(() => {
+                    const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
+                    const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
+                    
+                    if (cropUfcMm2.isZero()) {
+                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                    }
+
+                    const diffPercent = compUfcMm2.minus(cropUfcMm2).dividedBy(cropUfcMm2).times(100);
+                    const isSuperior = diffPercent.gt(0);
+                    const isEqual = diffPercent.isZero();
+
+                    return (
+                      <>
+                        <div className={`text-6xl font-bold font-mono mb-6 tracking-tighter ${isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'}`}>
+                          {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                        </div>
+                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
+                          Concentração na Superfície
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

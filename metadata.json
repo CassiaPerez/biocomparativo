@@ -1,5 +1,5 @@
 {
-  "name": "Sistema Comparativo de Biológicos",
-  "description": "Sistema full-stack para cálculo e comparação de produtos biológicos agrícolas.",
+  "name": "GCF - Comparativo de Biológicos",
+  "description": "Sistema de comparação técnica e comercial de produtos biológicos do Grupo Cropfield.",
   "requestFramePermissions": []
 }

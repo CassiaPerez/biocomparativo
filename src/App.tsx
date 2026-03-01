@@ -12,8 +12,6 @@ import {
   LayoutDashboard,
   AlertCircle,
   Download,
-  Menu,
-  X,
 } from 'lucide-react';
 import { Decimal } from 'decimal.js';
 import { jsPDF } from 'jspdf';
@@ -187,7 +185,7 @@ const ScientificInput = ({
             type="text"
             value={mantissa}
             onChange={handleMantissaChange}
-            className={`w-full text-3xl sm:text-4xl font-bold text-right outline-none bg-transparent tracking-tighter ${
+            className={`w-full text-4xl font-bold text-right outline-none bg-transparent tracking-tighter ${
               status === 'error' ? 'text-gcf-black/60' : 'text-gcf-black'
             } placeholder-gcf-black/20`}
             placeholder="0"
@@ -195,14 +193,14 @@ const ScientificInput = ({
           />
         </div>
 
-        <div className="mx-2 sm:mx-3 text-xl sm:text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
+        <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
 
-        <div className="relative -top-3 sm:-top-4">
+        <div className="relative -top-4">
           <input
             type="text"
             value={exponent}
             onChange={handleExponentChange}
-            className={`w-20 sm:w-24 text-xl sm:text-2xl font-bold outline-none border rounded-[12px] text-center py-1.5 transition-all shadow-sm ${
+            className={`w-24 text-2xl font-bold outline-none border rounded-[12px] text-center py-1.5 transition-all shadow-sm ${
               status === 'error'
                 ? 'bg-gcf-black/5 border-gcf-black/20 text-gcf-black/60 focus:border-gcf-black/40'
                 : status === 'warning'
@@ -260,9 +258,9 @@ const BigNumberDisplay = ({
       const [mantissa, exponent] = exponential.split('e');
       return (
         <span className="inline-flex items-baseline">
-          <span className="text-2xl sm:text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
-          <span className="mx-2 text-lg sm:text-xl text-gcf-black/20 font-serif italic">× 10</span>
-          <sup className="text-lg sm:text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
+          <span className="text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
+          <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
+          <sup className="text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
         </span>
       );
     }
@@ -290,7 +288,7 @@ const BigNumberDisplay = ({
           )}
         </div>
       )}
-      <div className={`font-mono ${!showScientific ? 'text-xl sm:text-2xl md:text-3xl font-bold tracking-tighter' : ''} ${colorClass}`}>
+      <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tighter' : ''} ${colorClass}`}>
         {formatValue()}
       </div>
     </div>
@@ -303,12 +301,6 @@ export default function App() {
 
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
-
-  // Desktop collapse (mantém seu comportamento)
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  // ✅ Mobile drawer
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -475,25 +467,25 @@ export default function App() {
     return (
       <div className="card-gcf h-full flex flex-col group">
         <div
-          className={`px-5 sm:px-8 py-6 sm:py-8 bg-gradient-to-br ${
+          className={`px-8 py-8 bg-gradient-to-br ${
             isCropfield ? 'from-gcf-green to-[#008f4f]' : 'from-gcf-black to-[#1a1c1d]'
           } text-gcf-offwhite relative overflow-hidden`}
         >
           <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-transform group-hover:scale-110"></div>
           <div className="flex justify-between items-center relative z-10">
             <div>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tighter">{title}</h2>
+              <h2 className="text-3xl font-bold tracking-tighter">{title}</h2>
               <p className="text-gcf-offwhite/70 text-[10px] mt-1 font-bold uppercase tracking-[0.2em]">
                 {isCropfield ? 'Tecnologia GCF' : 'Referência de Mercado'}
               </p>
             </div>
             <div className="bg-white/20 p-3 rounded-[14px] backdrop-blur-md border border-white/20 shadow-inner">
-              {isCropfield ? <Leaf size={22} className="text-gcf-offwhite" /> : <Hash size={22} className="text-gcf-offwhite" />}
+              {isCropfield ? <Leaf size={24} className="text-gcf-offwhite" /> : <Hash size={24} className="text-gcf-offwhite" />}
             </div>
           </div>
         </div>
 
-        <div className="p-5 sm:p-8 flex-1 flex flex-col gap-6 sm:gap-10">
+        <div className="p-8 flex-1 flex flex-col gap-10">
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="label-gcf">Identificação do Produto</label>
@@ -518,7 +510,7 @@ export default function App() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="label-gcf">Dose (mL ou g / ha)</label>
                   <input
@@ -562,7 +554,7 @@ export default function App() {
               <ScientificInput
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
-                className={`w-full font-mono text-base sm:text-xl font-bold ${
+                className={`w-full font-mono text-xl font-bold ${
                   isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
                 }`}
                 placeholder="Calculado..."
@@ -580,7 +572,7 @@ export default function App() {
                   Concentração
                 </span>
               </div>
-              <div className="bg-gcf-black/5 p-5 sm:p-6 rounded-[14px] border border-gcf-black/5">
+              <div className="bg-gcf-black/5 p-6 rounded-[14px] border border-gcf-black/5">
                 <BigNumberDisplay value={calculated.UFC_ou_conidios_mm2_superficie} colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'} />
                 <p className="text-[9px] text-gcf-black/40 mt-3 font-bold uppercase tracking-widest">Fórmula: UFC/ha ÷ 10¹⁰</p>
               </div>
@@ -593,8 +585,8 @@ export default function App() {
                   Comercial
                 </span>
               </div>
-              <div className={`p-5 sm:p-6 rounded-[14px] shadow-lg ${isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'}`}>
-                <div className="text-2xl sm:text-3xl font-bold font-mono text-gcf-offwhite tracking-tighter">
+              <div className={`p-6 rounded-[14px] shadow-lg ${isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'}`}>
+                <div className="text-3xl font-bold font-mono text-gcf-offwhite tracking-tighter">
                   <span className="text-gcf-offwhite/50 text-sm mr-2">R$</span>
                   {calculated['Custo_R$_por_ha'].toFixed(2).replace('.', ',')}
                 </div>
@@ -607,40 +599,14 @@ export default function App() {
     );
   };
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden">
-      {/* Backdrop (mobile drawer) */}
-      {mobileMenuOpen && (
-        <button
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-label="Fechar menu"
-          type="button"
-        />
-      )}
-
       {/* Sidebar */}
-      <aside
-        className={`
-          bg-gcf-black text-gcf-offwhite z-50 flex flex-col
-          fixed inset-y-0 left-0 w-72
-          transition-transform duration-300
-          ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:static md:translate-x-0 md:w-auto
-        `}
-      >
-        <div className="h-16 md:h-20 flex items-center px-6 border-b border-white/5">
-          <div className="flex items-center gap-3 overflow-hidden w-full">
-            {/* Mobile close */}
-            <button
-              className="md:hidden p-2 rounded-[10px] bg-white/5 hover:bg-white/10 transition-all"
-              onClick={() => setMobileMenuOpen(false)}
-              type="button"
-              aria-label="Fechar"
-            >
-              <X size={18} />
-            </button>
-
+      <aside className={`bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+        <div className="h-20 flex items-center px-6 border-b border-white/5">
+          <div className="flex items-center gap-3 overflow-hidden">
             {isSidebarOpen ? (
               <img src={gcfLogo} alt="GCF Logo" className="h-9 w-auto invert brightness-200" draggable={false} />
             ) : (
@@ -661,7 +627,6 @@ export default function App() {
                   : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
               }`}
               type="button"
-              onClick={() => setMobileMenuOpen(false)}
             >
               <item.icon size={20} className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'} />
               {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
@@ -669,7 +634,7 @@ export default function App() {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-white/5 hidden md:block">
+        <div className="p-4 border-t border-white/5">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="w-full flex items-center justify-center p-3 rounded-[12px] bg-white/5 hover:bg-white/10 transition-all"
@@ -683,54 +648,34 @@ export default function App() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="h-16 md:h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 sm:px-6 md:px-8 z-40">
-          <div className="flex items-center gap-3 md:gap-6 min-w-0">
-            {/* Mobile menu */}
-            <button
-              className="md:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
-              onClick={() => setMobileMenuOpen(true)}
-              type="button"
-              aria-label="Abrir menu"
-            >
-              <Menu size={18} />
-            </button>
-
-            <img src={gcfLogo} alt="GCF Logo" className="h-7 md:h-8 w-auto hidden sm:block" draggable={false} />
-
+        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-8 z-40">
+          <div className="flex items-center gap-6">
+            <img src={gcfLogo} alt="GCF Logo" className="h-8 hidden md:block w-auto" draggable={false} />
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-
-            <div className="flex items-center gap-3 min-w-0">
-              <h2 className="font-bold text-gcf-black tracking-tight text-sm sm:text-base truncate max-w-[180px] sm:max-w-none">
-                Comparativo de Biológicos
-              </h2>
-              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">
-                v2.0
-              </span>
+            <div className="flex items-center gap-4">
+              <h2 className="font-bold text-gcf-black tracking-tight">Comparativo de Biológicos</h2>
+              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">v2.0</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3 md:gap-6">
+          <div className="flex items-center gap-3 md:gap-6">
             <button
               onClick={downloadReportPdf}
-              className="btn-secondary !py-2 !px-3 md:!px-4 !text-xs uppercase tracking-widest"
+              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
               type="button"
               title="Baixar relatório em PDF"
             >
-              <Download size={16} />
-              <span className="hidden md:inline">Baixar PDF</span>
+              <Download size={14} />
+              <span>Baixar PDF</span>
             </button>
 
-            <button
-              onClick={clearAll}
-              className="btn-secondary !py-2 !px-3 md:!px-4 !text-xs uppercase tracking-widest"
-              type="button"
-            >
-              <Trash2 size={16} />
-              <span className="hidden md:inline">Limpar Dados</span>
+            <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
+              <Trash2 size={14} />
+              <span>Limpar Dados</span>
             </button>
 
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="hidden md:flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
                 <AlertCircle size={20} />
               </div>
@@ -738,18 +683,18 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12">
+        <main className="flex-1 overflow-y-auto p-8 md:p-12">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-10 md:mb-16">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gcf-black tracking-tighter mb-3 md:mb-4">
+            <div className="mb-16">
+              <h1 className="text-5xl font-bold text-gcf-black tracking-tighter mb-4">
                 Análise de <span className="text-gcf-green">Eficiência</span>
               </h1>
-              <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
+              <p className="text-lg text-gcf-black/40 max-w-2xl font-medium">
                 Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12 items-start relative">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
               <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gcf-offwhite p-4 rounded-full shadow-xl border border-gcf-black/5 text-gcf-black/20 font-black text-2xl tracking-tighter">
                 VS
               </div>
@@ -758,22 +703,20 @@ export default function App() {
               {renderProductColumn('Concorrente', compData, compCalculated, true)}
             </div>
 
-            <div className="mt-16 md:mt-24">
-              <div className="flex items-center gap-4 md:gap-6 mb-8 md:mb-12">
+            <div className="mt-24">
+              <div className="flex items-center gap-6 mb-12">
                 <div className="h-px flex-1 bg-gcf-black/10"></div>
-                <div className="flex items-center gap-3 px-5 md:px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
-                  <ArrowRightLeft className="text-gcf-green" size={18} />
-                  <h3 className="text-base md:text-lg font-bold text-gcf-black uppercase tracking-tighter">Análise de Diferenças</h3>
+                <div className="flex items-center gap-3 px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
+                  <ArrowRightLeft className="text-gcf-green" size={20} />
+                  <h3 className="text-lg font-bold text-gcf-black uppercase tracking-tighter">Análise de Diferenças</h3>
                 </div>
                 <div className="h-px flex-1 bg-gcf-black/10"></div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                <div className="bg-gcf-green p-7 sm:p-10 rounded-[24px] sm:rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="bg-gcf-green p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
-                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
-                    Diferença Custo / ha
-                  </span>
+                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
                   {(() => {
                     const cropCusto = cropCalculated['Custo_R$_por_ha'];
                     const compCusto = compCalculated['Custo_R$_por_ha'];
@@ -788,7 +731,7 @@ export default function App() {
 
                     return (
                       <>
-                        <div className="text-5xl sm:text-6xl font-bold font-mono mb-6 relative z-10 text-gcf-offwhite tracking-tighter">
+                        <div className="text-6xl font-bold font-mono mb-6 relative z-10 text-gcf-offwhite tracking-tighter">
                           {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
                         </div>
                         <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-bold text-gcf-offwhite relative z-10 border border-white/10 uppercase tracking-widest">
@@ -811,7 +754,7 @@ export default function App() {
                   })()}
                 </div>
 
-                <div className="bg-white p-7 sm:p-10 rounded-[24px] sm:rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                <div className="bg-white p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
                   {(() => {
                     const cropUfc = cropCalculated.UFC_ou_conidios_ha;
@@ -828,7 +771,7 @@ export default function App() {
                     return (
                       <>
                         <div
-                          className={`text-5xl sm:text-6xl font-bold font-mono mb-6 tracking-tighter ${
+                          className={`text-6xl font-bold font-mono mb-6 tracking-tighter ${
                             isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
@@ -862,7 +805,7 @@ export default function App() {
                   })()}
                 </div>
 
-                <div className="bg-white p-7 sm:p-10 rounded-[24px] sm:rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                <div className="bg-white p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
                   {(() => {
                     const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
@@ -879,7 +822,7 @@ export default function App() {
                     return (
                       <>
                         <div
-                          className={`text-5xl sm:text-6xl font-bold font-mono mb-6 tracking-tighter ${
+                          className={`text-6xl font-bold font-mono mb-6 tracking-tighter ${
                             isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >

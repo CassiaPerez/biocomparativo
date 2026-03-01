@@ -898,6 +898,3 @@ export default function App() {
     </div>
   );
 }
-
-
-como deixo responsivo pra mobile?

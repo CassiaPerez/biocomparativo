@@ -603,10 +603,10 @@ export default function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // ✅ NOVO: menu mobile (drawer) - NÃO ALTERA O DESKTOP
+  // ✅ MOBILE drawer state (não mexe no desktop)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // ✅ trava scroll do body quando menu mobile estiver aberto
+  // trava scroll no mobile com menu aberto
   useEffect(() => {
     if (isMobileMenuOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -615,10 +615,10 @@ export default function App() {
     };
   }, [isMobileMenuOpen]);
 
-  // ✅ fecha menu ao trocar para desktop (evita overlay preso)
+  // fecha menu ao ir para desktop
   useEffect(() => {
     const onResize = () => {
-      if (window.innerWidth >= 768) setIsMobileMenuOpen(false); // md breakpoint
+      if (window.innerWidth >= 1024) setIsMobileMenuOpen(false); // lg é onde seu layout já fica confortável
     };
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
@@ -626,75 +626,32 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden">
-      {/* ✅ MOBILE DRAWER + OVERLAY (somente < md) */}
+      {/* ✅ Overlay mobile */}
       {isMobileMenuOpen && (
-        <>
-          <button
-            type="button"
-            aria-label="Fechar menu"
-            className="fixed inset-0 bg-black/40 z-[60] md:hidden"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <aside className="fixed top-0 left-0 h-full w-[82vw] max-w-[320px] bg-gcf-black text-gcf-offwhite z-[70] md:hidden shadow-2xl flex flex-col">
-            <div className="h-20 flex items-center justify-between px-6 border-b border-white/10">
-              <img src={gcfLogo} alt="GCF Logo" className="h-9 w-auto invert brightness-200" draggable={false} />
-              <button
-                type="button"
-                className="p-2 rounded-[12px] bg-white/10 hover:bg-white/15 transition-all"
-                onClick={() => setIsMobileMenuOpen(false)}
-                aria-label="Fechar"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <nav className="flex-1 py-6 px-4 space-y-2">
-              <button
-                type="button"
-                className="w-full flex items-center gap-4 px-4 py-3 rounded-[12px] bg-gcf-green text-gcf-offwhite shadow-lg shadow-gcf-green/20"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <LayoutDashboard size={20} />
-                <span className="font-bold text-sm">Comparativo</span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full flex items-center gap-4 px-4 py-3 rounded-[12px] text-gcf-offwhite/80 hover:bg-white/5 hover:text-gcf-offwhite transition-all"
-                onClick={() => {
-                  downloadReportPdf();
-                  setIsMobileMenuOpen(false);
-                }}
-              >
-                <Download size={20} />
-                <span className="font-bold text-sm">Baixar PDF</span>
-              </button>
-
-              <button
-                type="button"
-                className="w-full flex items-center gap-4 px-4 py-3 rounded-[12px] text-gcf-offwhite/80 hover:bg-white/5 hover:text-gcf-offwhite transition-all"
-                onClick={() => {
-                  clearAll();
-                  setIsMobileMenuOpen(false);
-                }}
-              >
-                <Trash2 size={20} />
-                <span className="font-bold text-sm">Limpar Dados</span>
-              </button>
-            </nav>
-
-            <div className="p-4 border-t border-white/10">
-              <div className="text-[10px] text-gcf-offwhite/50 font-bold uppercase tracking-widest">
-                Menu mobile
-              </div>
-            </div>
-          </aside>
-        </>
+        <button
+          type="button"
+          className="fixed inset-0 bg-black/40 z-[60] lg:hidden"
+          aria-label="Fechar menu"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
       )}
 
-      {/* Sidebar (DESKTOP) — mantido igual, só escondido no mobile */}
-      <aside className={`hidden md:flex bg-gcf-black text-gcf-offwhite transition-all duration-300 flex-col z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
-        <div className="h-20 flex items-center px-6 border-b border-white/5">
+      {/* Sidebar (MESMO componente) — desktop mantém igual; mobile vira drawer */}
+      <aside
+        className={[
+          'bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50',
+          // desktop exatamente igual ao seu
+          isSidebarOpen ? 'w-64' : 'w-20',
+          // mobile drawer (não afeta desktop)
+          'fixed lg:static top-0 left-0 h-full',
+          'lg:translate-x-0',
+          isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
+          'lg:transform-none',
+          // largura no mobile independente de w-64/w-20 (sobrescreve no mobile)
+          'w-[82vw] max-w-[320px] lg:w-auto',
+        ].join(' ')}
+      >
+        <div className="h-20 flex items-center px-6 border-b border-white/5 justify-between lg:justify-start">
           <div className="flex items-center gap-3 overflow-hidden">
             {isSidebarOpen ? (
               <img src={gcfLogo} alt="GCF Logo" className="h-9 w-auto invert brightness-200" draggable={false} />
@@ -704,6 +661,17 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* ✅ X só no mobile */}
+          <button
+            type="button"
+            className="lg:hidden p-2 rounded-[12px] bg-white/10 hover:bg-white/15 transition-all"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-label="Fechar"
+            title="Fechar"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-2">
@@ -716,6 +684,7 @@ export default function App() {
                   : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
               }`}
               type="button"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               <item.icon size={20} className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'} />
               {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
@@ -736,13 +705,13 @@ export default function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8 z-40">
-          <div className="flex items-center gap-4 md:gap-6">
-            {/* ✅ botão menu no mobile */}
+        {/* Header (mantido igual ao seu, só adiciona botão ☰ no mobile) */}
+        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-8 z-40">
+          <div className="flex items-center gap-6">
+            {/* ✅ Botão ☰ só no mobile */}
             <button
               type="button"
-              className="md:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
+              className="lg:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
               onClick={() => setIsMobileMenuOpen(true)}
               aria-label="Abrir menu"
               title="Abrir menu"
@@ -766,12 +735,12 @@ export default function App() {
               title="Baixar relatório em PDF"
             >
               <Download size={14} />
-              <span className="hidden sm:inline">Baixar PDF</span>
+              <span>Baixar PDF</span>
             </button>
 
             <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
               <Trash2 size={14} />
-              <span className="hidden sm:inline">Limpar Dados</span>
+              <span>Limpar Dados</span>
             </button>
 
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
@@ -783,7 +752,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-12">
+        <main className="flex-1 overflow-y-auto p-8 md:p-12">
           <div className="max-w-7xl mx-auto">
             <div className="mb-16">
               <h1 className="text-5xl font-bold text-gcf-black tracking-tighter mb-4">

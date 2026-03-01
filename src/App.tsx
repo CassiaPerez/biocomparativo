@@ -67,7 +67,6 @@ const ScientificInput = ({
   const [status, setStatus] = useState<'default' | 'error' | 'warning'>('default');
   const [message, setMessage] = useState<string>('');
 
-  // Sync state with prop value
   useEffect(() => {
     if (!value) {
       setMantissa('');
@@ -264,10 +263,10 @@ const BigNumberDisplay = ({
           {label && <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">{label}</span>}
           {isLarge && !isCurrency && (
             <button
+              type="button"
               onClick={() => setShowScientific(!showScientific)}
               className="flex items-center gap-1.5 px-2 py-1 rounded-[8px] bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black/60 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ml-auto"
               title="Alternar formato"
-              type="button"
             >
               {showScientific ? <Hash size={10} /> : <Calculator size={10} />}
               <span>{showScientific ? 'Normal' : 'Científica'}</span>
@@ -291,10 +290,10 @@ export default function App() {
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // ✅ Drawer Mobile separado (não interfere no desktop)
+  // Mobile drawer state
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // ✅ Trava scroll quando menu mobile abre
+  // Lock body scroll when mobile menu open
   useEffect(() => {
     if (mobileMenuOpen) document.body.style.overflow = 'hidden';
     else document.body.style.overflow = '';
@@ -364,6 +363,7 @@ export default function App() {
 
     return (
       <div className="card-gcf h-full flex flex-col group">
+        {/* Header */}
         <div className={`px-8 py-8 bg-gradient-to-br ${isCropfield ? 'from-gcf-green to-[#008f4f]' : 'from-gcf-black to-[#1a1c1d]'} text-gcf-offwhite relative overflow-hidden`}>
           <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-transform group-hover:scale-110"></div>
           <div className="flex justify-between items-center relative z-10">
@@ -379,7 +379,9 @@ export default function App() {
           </div>
         </div>
 
+        {/* Content */}
         <div className="p-8 flex-1 flex flex-col gap-10">
+          {/* Inputs */}
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="label-gcf">Identificação do Produto</label>
@@ -437,6 +439,7 @@ export default function App() {
 
           <div className="w-full h-px bg-gcf-black/5"></div>
 
+          {/* Results */}
           <div className="space-y-8">
             <div className="flex flex-col space-y-3">
               <div className="flex justify-between items-center px-1">
@@ -488,6 +491,7 @@ export default function App() {
     );
   };
 
+  // Nav reused
   const NavContent = ({ onNavigate }: { onNavigate?: () => void }) => (
     <nav className="flex-1 py-6 px-4 space-y-2">
       {[
@@ -513,20 +517,18 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden">
 
-      {/* ✅ Backdrop (SÓ mobile) */}
+      {/* ✅ Backdrop (mobile only) - click closes */}
       {mobileMenuOpen && (
-        <button
-          type="button"
+        <div
           className="fixed inset-0 bg-black/50 z-[60] md:hidden"
-          aria-label="Fechar menu"
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
-      {/* ✅ MENU MOBILE (drawer separado) */}
+      {/* ✅ MOBILE DRAWER */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-[70] md:hidden
+          fixed inset-y-0 left-0 z-[70] md:hidden pointer-events-auto
           w-[85vw] max-w-[320px]
           bg-gcf-black text-gcf-offwhite
           transform transition-transform duration-300
@@ -541,10 +543,15 @@ export default function App() {
             className="h-8 invert brightness-200"
             draggable={false}
           />
+
           <button
             type="button"
-            className="p-2 rounded-[12px] bg-white/5 hover:bg-white/10 transition-all"
-            onClick={() => setMobileMenuOpen(false)}
+            className="relative z-[80] p-2 rounded-[12px] bg-white/10 hover:bg-white/15 transition-all"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMobileMenuOpen(false);
+            }}
             aria-label="Fechar"
           >
             <X size={18} />
@@ -554,7 +561,7 @@ export default function App() {
         <NavContent onNavigate={() => setMobileMenuOpen(false)} />
       </aside>
 
-      {/* ✅ SIDEBAR DESKTOP (igual ao seu, não mexe) */}
+      {/* ✅ DESKTOP SIDEBAR (unchanged behavior) */}
       <aside className={`hidden md:flex bg-gcf-black text-gcf-offwhite transition-all duration-300 flex-col z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
         <div className="h-20 flex items-center px-6 border-b border-white/5">
           <div className="flex items-center gap-3 overflow-hidden">
@@ -573,7 +580,6 @@ export default function App() {
           </div>
         </div>
 
-        {/* nav desktop */}
         <nav className="flex-1 py-6 px-4 space-y-2">
           {[
             { icon: LayoutDashboard, label: 'Comparativo', active: true },
@@ -609,7 +615,6 @@ export default function App() {
         {/* Header */}
         <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8 z-40">
           <div className="flex items-center gap-4 md:gap-6">
-            {/* ✅ Botão hamburguer só no mobile */}
             <button
               type="button"
               className="md:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
@@ -652,6 +657,7 @@ export default function App() {
 
         <main className="flex-1 overflow-y-auto p-6 md:p-12">
           <div className="max-w-7xl mx-auto">
+
             <div className="mb-16">
               <h1 className="text-5xl font-bold text-gcf-black tracking-tighter mb-4">
                 Análise de <span className="text-gcf-green">Eficiência</span>
@@ -661,7 +667,10 @@ export default function App() {
               </p>
             </div>
 
+            {/* Comparison Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
+
+              {/* VS Badge (Desktop) */}
               <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gcf-offwhite p-4 rounded-full shadow-xl border border-gcf-black/5 text-gcf-black/20 font-black text-2xl tracking-tighter">
                 VS
               </div>
@@ -670,6 +679,7 @@ export default function App() {
               {renderProductColumn('Concorrente', compData, compCalculated, true)}
             </div>
 
+            {/* Differences Section */}
             <div className="mt-24">
               <div className="flex items-center gap-6 mb-12">
                 <div className="h-px flex-1 bg-gcf-black/10"></div>

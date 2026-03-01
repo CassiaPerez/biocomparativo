@@ -307,8 +307,17 @@ export default function App() {
   // Desktop collapse (mantém seu comportamento)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // ✅ Mobile drawer
+  // ✅ Mobile drawer (começa fechado, para não cortar)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // ✅ Trava scroll no mobile quando menu abre
+  useEffect(() => {
+    if (mobileMenuOpen) document.body.style.overflow = 'hidden';
+    else document.body.style.overflow = '';
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [mobileMenuOpen]);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -379,14 +388,11 @@ export default function App() {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
     const now = new Date();
-    const dt = new Intl.DateTimeFormat('pt-BR', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(now);
+    const dt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(now);
 
     const fmtDec = (d: Decimal) => {
       try {
-        if (!d || (d as any).isNaN?.()) return '0';
+        if (!d) return '0';
         if (d.abs().gte(new Decimal('1e9'))) return d.toExponential(2);
         return d.toFixed(2);
       } catch {
@@ -395,24 +401,21 @@ export default function App() {
     };
 
     const fmtMoney = (d: Decimal) =>
-      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-        (() => {
-          try {
-            return d?.toNumber?.() ?? 0;
-          } catch {
-            return 0;
-          }
-        })()
-      );
+      new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(() => {
+        try {
+          return d.toNumber();
+        } catch {
+          return 0;
+        }
+      });
 
+    // header
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text('Relatório — Comparativo de Biológicos', 40, 48);
-
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.text(`Gerado em: ${dt}`, 40, 66);
-
     doc.setDrawColor(41, 44, 45);
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
@@ -439,7 +442,11 @@ export default function App() {
       body: [
         ['UFC/ha', fmtDec(cropCalculated.UFC_ou_conidios_ha), fmtDec(compCalculated.UFC_ou_conidios_ha)],
         ['UFC/mm² (superfície)', fmtDec(cropCalculated.UFC_ou_conidios_mm2_superficie), fmtDec(compCalculated.UFC_ou_conidios_mm2_superficie)],
-        ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
+        [
+          'Custo/ha',
+          new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cropCalculated['Custo_R$_por_ha'].toNumber()),
+          new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(compCalculated['Custo_R$_por_ha'].toNumber()),
+        ],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
@@ -456,7 +463,7 @@ export default function App() {
       startY: yAfterResults,
       head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
-        ['Δ Custo/ha', fmtMoney(diffCusto)],
+        ['Δ Custo/ha', new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(diffCusto.toNumber())],
         ['Δ UFC/ha', fmtDec(diffUfc)],
         ['Δ UFC/mm²', fmtDec(diffMm2)],
       ],
@@ -479,7 +486,7 @@ export default function App() {
             isCropfield ? 'from-gcf-green to-[#008f4f]' : 'from-gcf-black to-[#1a1c1d]'
           } text-gcf-offwhite relative overflow-hidden`}
         >
-          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-transform group-hover:scale-110"></div>
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-transform group-hover:scale-110" />
           <div className="flex justify-between items-center relative z-10">
             <div>
               <h2 className="text-2xl sm:text-3xl font-bold tracking-tighter">{title}</h2>
@@ -549,7 +556,7 @@ export default function App() {
             </div>
           </div>
 
-          <div className="w-full h-px bg-gcf-black/5"></div>
+          <div className="w-full h-px bg-gcf-black/5" />
 
           <div className="space-y-8">
             <div className="flex flex-col space-y-3">
@@ -612,10 +619,10 @@ export default function App() {
       {/* Backdrop (mobile drawer) */}
       {mobileMenuOpen && (
         <button
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-          aria-label="Fechar menu"
           type="button"
+          aria-label="Fechar menu"
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setMobileMenuOpen(false)}
         />
       )}
 
@@ -623,10 +630,11 @@ export default function App() {
       <aside
         className={`
           bg-gcf-black text-gcf-offwhite z-50 flex flex-col
-          fixed inset-y-0 left-0 w-72
+          fixed inset-y-0 left-0
+          w-[85vw] max-w-[320px]
           transition-transform duration-300
           ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:static md:translate-x-0 md:w-auto
+          md:static md:translate-x-0 md:w-64
         `}
       >
         <div className="h-16 md:h-20 flex items-center px-6 border-b border-white/5">
@@ -697,7 +705,7 @@ export default function App() {
 
             <img src={gcfLogo} alt="GCF Logo" className="h-7 md:h-8 w-auto hidden sm:block" draggable={false} />
 
-            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
+            <div className="h-8 w-px bg-gcf-black/10 hidden md:block" />
 
             <div className="flex items-center gap-3 min-w-0">
               <h2 className="font-bold text-gcf-black tracking-tight text-sm sm:text-base truncate max-w-[180px] sm:max-w-none">
@@ -729,7 +737,7 @@ export default function App() {
               <span className="hidden md:inline">Limpar Dados</span>
             </button>
 
-            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
+            <div className="h-8 w-px bg-gcf-black/10 hidden md:block" />
             <div className="hidden md:flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
                 <AlertCircle size={20} />
@@ -760,17 +768,17 @@ export default function App() {
 
             <div className="mt-16 md:mt-24">
               <div className="flex items-center gap-4 md:gap-6 mb-8 md:mb-12">
-                <div className="h-px flex-1 bg-gcf-black/10"></div>
+                <div className="h-px flex-1 bg-gcf-black/10" />
                 <div className="flex items-center gap-3 px-5 md:px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
                   <ArrowRightLeft className="text-gcf-green" size={18} />
                   <h3 className="text-base md:text-lg font-bold text-gcf-black uppercase tracking-tighter">Análise de Diferenças</h3>
                 </div>
-                <div className="h-px flex-1 bg-gcf-black/10"></div>
+                <div className="h-px flex-1 bg-gcf-black/10" />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                 <div className="bg-gcf-green p-7 sm:p-10 rounded-[24px] sm:rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
+                  <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150" />
                   <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
                     Diferença Custo / ha
                   </span>
@@ -885,7 +893,9 @@ export default function App() {
                         >
                           {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
                         </div>
-                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Concentração na Superfície</div>
+                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
+                          Concentração na Superfície
+                        </div>
                       </>
                     );
                   })()}

@@ -206,8 +206,8 @@ const ScientificInput = ({
               status === 'error'
                 ? 'bg-gcf-black/5 border-gcf-black/20 text-gcf-black/60 focus:border-gcf-black/40'
                 : status === 'warning'
-                  ? 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black/40 focus:border-gcf-black/30'
-                  : 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green focus:bg-white focus:border-gcf-green'
+                ? 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black/40 focus:border-gcf-black/30'
+                : 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green focus:bg-white focus:border-gcf-green'
             }`}
             placeholder="0"
             inputMode="numeric"
@@ -304,6 +304,21 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
+  // Sidebar desktop (colapsar/expandir)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // ✅ Menu mobile (drawer)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // ✅ Quando entrar em desktop, garante que o drawer não fica “preso” aberto
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 1024) setIsMobileMenuOpen(false); // lg
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
       const conc = new Decimal(data.Concentracao_por_ml_ou_g || 0);
@@ -369,6 +384,7 @@ export default function App() {
     setCompData(INITIAL_STATE_CONCORRENTE);
   };
 
+  // ✅ PDF completo (entradas + resultados + diferenças) e botão no topo
   const downloadReportPdf = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
@@ -469,7 +485,7 @@ export default function App() {
     return (
       <div className="card-gcf h-full flex flex-col group">
         <div
-          className={`px-8 py-8 bg-gradient-to-br ${
+          className={`px-6 sm:px-8 py-7 sm:py-8 bg-gradient-to-br ${
             isCropfield ? 'from-gcf-green to-[#008f4f]' : 'from-gcf-black to-[#1a1c1d]'
           } text-gcf-offwhite relative overflow-hidden`}
         >
@@ -487,7 +503,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className="p-8 flex-1 flex flex-col gap-10">
+        <div className="p-6 sm:p-8 flex-1 flex flex-col gap-10">
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="label-gcf">Identificação do Produto</label>
@@ -601,32 +617,13 @@ export default function App() {
     );
   };
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-
-  // ✅ MOBILE drawer state (não mexe no desktop)
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  // trava scroll no mobile com menu aberto
-  useEffect(() => {
-    if (isMobileMenuOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [isMobileMenuOpen]);
-
-  // fecha menu ao ir para desktop
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 1024) setIsMobileMenuOpen(false); // lg é onde seu layout já fica confortável
-    };
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
+  const diffCustoHa = compCalculated['Custo_R$_por_ha'].minus(cropCalculated['Custo_R$_por_ha']);
+  const diffUfcHa = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
+  const diffUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden">
-      {/* ✅ Overlay mobile */}
+      {/* ✅ Overlay somente no mobile */}
       {isMobileMenuOpen && (
         <button
           type="button"
@@ -636,23 +633,24 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar (MESMO componente) — desktop mantém igual; mobile vira drawer */}
+      {/* Sidebar */}
       <aside
         className={[
-          'bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50',
-          // desktop exatamente igual ao seu
+          'bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-[70]',
+
+          // ✅ Desktop (não muda o layout)
           isSidebarOpen ? 'w-64' : 'w-20',
-          // mobile drawer (não afeta desktop)
-          'fixed lg:static top-0 left-0 h-full',
-          'lg:translate-x-0',
+          'lg:static lg:h-auto lg:translate-x-0',
+
+          // ✅ Mobile drawer
+          'fixed top-0 left-0 h-full w-[82vw] max-w-[320px] lg:w-auto',
+          'transform lg:transform-none',
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:transform-none',
-          // largura no mobile independente de w-64/w-20 (sobrescreve no mobile)
-          'w-[82vw] max-w-[320px] lg:w-auto',
         ].join(' ')}
       >
-        <div className="h-20 flex items-center px-6 border-b border-white/5 justify-between lg:justify-start">
-          <div className="flex items-center gap-3 overflow-hidden">
+        <div className="h-20 flex items-center px-6 border-b border-white/5">
+          <div className="flex items-center gap-3 overflow-hidden w-full">
+            {/* Logo / Icon */}
             {isSidebarOpen ? (
               <img src={gcfLogo} alt="GCF Logo" className="h-9 w-auto invert brightness-200" draggable={false} />
             ) : (
@@ -660,18 +658,18 @@ export default function App() {
                 <Leaf size={20} />
               </div>
             )}
-          </div>
 
-          {/* ✅ X só no mobile */}
-          <button
-            type="button"
-            className="lg:hidden p-2 rounded-[12px] bg-white/10 hover:bg-white/15 transition-all"
-            onClick={() => setIsMobileMenuOpen(false)}
-            aria-label="Fechar"
-            title="Fechar"
-          >
-            <X size={18} />
-          </button>
+            {/* ✅ Fechar drawer (somente mobile) */}
+            <button
+              type="button"
+              className="ml-auto lg:hidden p-2 rounded-[12px] bg-white/10 hover:bg-white/15 transition-all"
+              onClick={() => setIsMobileMenuOpen(false)}
+              aria-label="Fechar menu"
+              title="Fechar menu"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <nav className="flex-1 py-6 px-4 space-y-2">
@@ -690,9 +688,37 @@ export default function App() {
               {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
             </button>
           ))}
+
+          {/* ✅ Ações também visíveis no menu (ótimo pro mobile) */}
+          <div className="pt-3 mt-3 border-t border-white/10">
+            <button
+              type="button"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-[12px] transition-all text-gcf-offwhite/70 hover:bg-white/5 hover:text-gcf-offwhite"
+              onClick={() => {
+                downloadReportPdf();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Download size={18} className="text-gcf-offwhite/50" />
+              {isSidebarOpen && <span className="font-bold text-sm">Baixar PDF</span>}
+            </button>
+
+            <button
+              type="button"
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-[12px] transition-all text-gcf-offwhite/70 hover:bg-white/5 hover:text-gcf-offwhite"
+              onClick={() => {
+                clearAll();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Trash2 size={18} className="text-gcf-offwhite/50" />
+              {isSidebarOpen && <span className="font-bold text-sm">Limpar Dados</span>}
+            </button>
+          </div>
         </nav>
 
-        <div className="p-4 border-t border-white/5">
+        {/* Desktop: colapsar/expandir; Mobile: não precisa */}
+        <div className="p-4 border-t border-white/5 hidden lg:block">
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             className="w-full flex items-center justify-center p-3 rounded-[12px] bg-white/5 hover:bg-white/10 transition-all"
@@ -705,10 +731,10 @@ export default function App() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header (mantido igual ao seu, só adiciona botão ☰ no mobile) */}
-        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-8 z-40">
-          <div className="flex items-center gap-6">
-            {/* ✅ Botão ☰ só no mobile */}
+        {/* Header */}
+        <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 sm:px-6 md:px-8 z-40">
+          <div className="flex items-center gap-3 sm:gap-6">
+            {/* ✅ Botão abrir menu (somente mobile) */}
             <button
               type="button"
               className="lg:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
@@ -721,30 +747,35 @@ export default function App() {
 
             <img src={gcfLogo} alt="GCF Logo" className="h-8 hidden md:block w-auto" draggable={false} />
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="flex items-center gap-4">
-              <h2 className="font-bold text-gcf-black tracking-tight">Comparativo de Biológicos</h2>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <h2 className="font-bold text-gcf-black tracking-tight text-sm sm:text-base">Comparativo de Biológicos</h2>
               <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">v2.0</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 md:gap-6">
+          {/* ✅ Botão PDF no topo (visível sempre) */}
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-6">
             <button
               onClick={downloadReportPdf}
-              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+              className="btn-secondary !py-2 !px-3 sm:!px-4 !text-xs uppercase tracking-widest"
               type="button"
               title="Baixar relatório em PDF"
             >
               <Download size={14} />
-              <span>Baixar PDF</span>
+              <span className="hidden sm:inline">Baixar PDF</span>
             </button>
 
-            <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
+            <button
+              onClick={clearAll}
+              className="btn-secondary !py-2 !px-3 sm:!px-4 !text-xs uppercase tracking-widest"
+              type="button"
+            >
               <Trash2 size={14} />
-              <span>Limpar Dados</span>
+              <span className="hidden sm:inline">Limpar Dados</span>
             </button>
 
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
                 <AlertCircle size={20} />
               </div>
@@ -752,13 +783,13 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-8 md:p-12">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 lg:p-12">
           <div className="max-w-7xl mx-auto">
-            <div className="mb-16">
-              <h1 className="text-5xl font-bold text-gcf-black tracking-tighter mb-4">
+            <div className="mb-10 sm:mb-16">
+              <h1 className="text-4xl sm:text-5xl font-bold text-gcf-black tracking-tighter mb-4">
                 Análise de <span className="text-gcf-green">Eficiência</span>
               </h1>
-              <p className="text-lg text-gcf-black/40 max-w-2xl font-medium">
+              <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
                 Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
               </p>
             </div>
@@ -772,8 +803,8 @@ export default function App() {
               {renderProductColumn('Concorrente', compData, compCalculated, true)}
             </div>
 
-            <div className="mt-24">
-              <div className="flex items-center gap-6 mb-12">
+            <div className="mt-16 sm:mt-24">
+              <div className="flex items-center gap-6 mb-10 sm:mb-12">
                 <div className="h-px flex-1 bg-gcf-black/10"></div>
                 <div className="flex items-center gap-3 px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
                   <ArrowRightLeft className="text-gcf-green" size={20} />
@@ -851,8 +882,8 @@ export default function App() {
                             isEqual
                               ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10'
                               : isSuperior
-                                ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
-                                : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
+                              ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
+                              : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
                           }`}
                         >
                           {isEqual ? (
@@ -902,6 +933,11 @@ export default function App() {
                     );
                   })()}
                 </div>
+              </div>
+
+              {/* Só para referência (diferenças absolutas já usadas no PDF) */}
+              <div className="sr-only">
+                {diffCustoHa.toString()} {diffUfcHa.toString()} {diffUfcMm2.toString()}
               </div>
             </div>
           </div>

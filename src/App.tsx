@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Plus,
   ArrowRightLeft,
   Trash2,
   Hash,
@@ -7,7 +8,6 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Plus,
   Leaf,
   LayoutDashboard,
   AlertCircle,
@@ -88,15 +88,15 @@ const ScientificInput = ({
       if (dec.isZero()) {
         setMantissa('0');
         setExponent('0');
+        setStatus('default');
+        setMessage('');
         return;
       }
 
       const sciStr = dec.toExponential();
       const [m, e] = sciStr.split('e');
-
       setMantissa(m);
       setExponent(e.replace('+', ''));
-
       setStatus('default');
       setMessage('');
     } catch (_) {
@@ -116,10 +116,8 @@ const ScientificInput = ({
       if (isNaN(Number(m))) throw new Error();
       if (e !== '' && e !== '-' && isNaN(Number(e))) throw new Error();
 
-      const safeM = m;
       const safeE = (e === '' || e === '-') ? '0' : e;
-
-      const val = new Decimal(`${safeM}e${safeE}`);
+      const val = new Decimal(`${m}e${safeE}`);
 
       const expVal = parseInt(safeE);
       if (Math.abs(expVal) > 50) {
@@ -161,7 +159,7 @@ const ScientificInput = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative mb-6">
       <div className={`group flex items-center bg-white border rounded-[14px] px-4 py-4 transition-all shadow-sm ${getStatusClasses()} ${className ?? ''}`}>
         <div className="flex-1 min-w-[80px]">
           <input
@@ -231,7 +229,7 @@ const BigNumberDisplay = ({
     if (isLarge && !isCurrency) setShowScientific(true);
   }, [isLarge, isCurrency]);
 
-  const formatted = useMemo(() => {
+  const formatValue = () => {
     if (isZero) return isCurrency ? 'R$ 0,00' : '0';
 
     if (isCurrency) {
@@ -240,24 +238,26 @@ const BigNumberDisplay = ({
 
     if (showScientific) {
       const exponential = value.toExponential(2);
-      const [m, e] = exponential.split('e');
-      return { sci: true, m: m.replace('.', ','), e: e.replace('+', '') };
+      const [mantissa, exponent] = exponential.split('e');
+      return (
+        <span className="inline-flex items-baseline">
+          <span className="text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
+          <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
+          <sup className="text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
+        </span>
+      );
     }
 
     const parts = value.toFixed(0).split('.');
     parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
     return parts.join(',');
-  }, [isZero, isCurrency, showScientific, value]);
+  };
 
   return (
     <div className="flex flex-col">
       {(label || (isLarge && !isCurrency)) && (
         <div className="flex justify-between items-center mb-2">
-          {label && (
-            <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">
-              {label}
-            </span>
-          )}
+          {label && <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">{label}</span>}
           {isLarge && !isCurrency && (
             <button
               type="button"
@@ -271,17 +271,8 @@ const BigNumberDisplay = ({
           )}
         </div>
       )}
-
       <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tighter' : ''} ${colorClass}`}>
-        {typeof formatted === 'string' ? (
-          formatted
-        ) : (
-          <span className="inline-flex items-baseline">
-            <span className="text-3xl font-bold tracking-tighter">{formatted.m}</span>
-            <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
-            <sup className="text-xl font-bold text-gcf-green -top-2 relative">{formatted.e}</sup>
-          </span>
-        )}
+        {formatValue()}
       </div>
     </div>
   );
@@ -297,16 +288,15 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // Desktop sidebar collapse (desktop only)
+  // Desktop sidebar collapse
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // Mobile drawer
+  // ✅ Mobile drawer menu (THIS fixes mobile)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Lock scroll when mobile drawer open
+  // ✅ Prevent background scroll when drawer open
   useEffect(() => {
-    if (mobileMenuOpen) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen]);
 
@@ -349,7 +339,6 @@ export default function App() {
     setter(prev => ({ ...prev, [name]: value }));
   };
 
-  // Reverse calc: editing UFC/ha recalculates dose
   const handleUfcChange = (value: string, isCompetitor = false) => {
     const setter = isCompetitor ? setCompData : setCropData;
     const currentData = isCompetitor ? compData : cropData;
@@ -376,7 +365,6 @@ export default function App() {
 
   const generatePDF = () => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
-
     const now = new Date();
     const stamp = now.toLocaleString('pt-BR');
 
@@ -405,7 +393,7 @@ export default function App() {
       margin: { left: 40, right: 40 }
     });
 
-    const y = (doc as any).lastAutoTable.finalY + 22;
+    const y = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 22 : 420;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
@@ -558,23 +546,26 @@ export default function App() {
   };
 
   // =========================
-  // Layout
+  // Layout (MOBILE FIXED)
   // =========================
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black overflow-x-hidden">
       {/* =========================
-          MOBILE DRAWER (isolado)
+          MOBILE DRAWER (does NOT affect layout width)
          ========================= */}
       {mobileMenuOpen && (
         <>
-          <div
+          {/* Overlay (click closes) */}
+          <button
+            type="button"
             className="fixed inset-0 bg-black/45 z-[60] md:hidden"
+            aria-label="Fechar menu"
             onClick={() => setMobileMenuOpen(false)}
           />
 
-          <aside className="fixed top-0 left-0 h-full w-[82vw] max-w-[320px] bg-gcf-black text-gcf-offwhite z-[70] md:hidden flex flex-col shadow-2xl">
-            <div className="h-20 flex items-center justify-between px-6 border-b border-white/10">
-              {/* ✅ Use SEM import. Arquivo deve estar em /public/gcf_logo.png */}
+          {/* Drawer */}
+          <aside className="fixed top-0 left-0 h-full w-[82vw] max-w-[320px] bg-gcf-black text-gcf-offwhite z-[70] md:hidden shadow-2xl flex flex-col">
+            <div className="h-20 px-6 flex items-center justify-between border-b border-white/10">
               <img
                 src="/gcf_logo.png"
                 alt="GCF"
@@ -584,11 +575,7 @@ export default function App() {
               <button
                 type="button"
                 className="p-2 rounded-xl bg-white/10 hover:bg-white/15 transition"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setMobileMenuOpen(false);
-                }}
+                onClick={() => setMobileMenuOpen(false)}
                 aria-label="Fechar"
               >
                 <X size={18} />
@@ -598,7 +585,7 @@ export default function App() {
             <nav className="p-4 space-y-2">
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] bg-gcf-green text-gcf-offwhite font-bold shadow-lg shadow-gcf-green/20"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] bg-gcf-green text-white font-bold shadow-lg shadow-gcf-green/20"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 <LayoutDashboard size={18} />
@@ -607,7 +594,7 @@ export default function App() {
 
               <button
                 type="button"
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] bg-white/5 hover:bg-white/10 text-gcf-offwhite/80 font-bold transition"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] bg-white/5 hover:bg-white/10 text-white/80 font-bold transition"
                 onClick={() => {
                   generatePDF();
                   setMobileMenuOpen(false);
@@ -616,22 +603,36 @@ export default function App() {
                 <Download size={18} />
                 <span>Baixar PDF</span>
               </button>
+
+              <button
+                type="button"
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-[12px] bg-white/5 hover:bg-white/10 text-white/80 font-bold transition"
+                onClick={() => {
+                  clearAll();
+                  setMobileMenuOpen(false);
+                }}
+              >
+                <Trash2 size={18} />
+                <span>Limpar dados</span>
+              </button>
             </nav>
+
+            <div className="mt-auto p-4 border-t border-white/10 text-[10px] text-white/50">
+              Menu mobile (drawer) — não corta o conteúdo.
+            </div>
           </aside>
         </>
       )}
 
       <div className="flex min-h-screen">
-        {/* =========================
-            DESKTOP SIDEBAR
-           ========================= */}
-        <aside className={`hidden md:flex bg-gcf-black text-gcf-offwhite transition-all duration-300 flex-col ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+        {/* ✅ Desktop sidebar ONLY (hidden on mobile) */}
+        <aside className={`hidden md:flex bg-gcf-black text-gcf-offwhite transition-all duration-300 flex-col z-50 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
           <div className="h-20 flex items-center px-6 border-b border-white/10">
             <div className="flex items-center gap-3 overflow-hidden">
               {isSidebarOpen ? (
                 <img
                   src="/gcf_logo.png"
-                  alt="GCF"
+                  alt="GCF Logo"
                   className="h-8 invert brightness-200"
                   draggable={false}
                 />
@@ -673,13 +674,12 @@ export default function App() {
           </div>
         </aside>
 
-        {/* =========================
-            MAIN
-           ========================= */}
+        {/* ✅ Main must have min-w-0 to avoid cutting/overflow */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
-          <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8">
+          <header className="h-20 bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8 z-40">
             <div className="flex items-center gap-4 md:gap-6 min-w-0">
+              {/* ✅ Mobile menu button */}
               <button
                 type="button"
                 className="md:hidden p-2 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-all"
@@ -691,7 +691,7 @@ export default function App() {
 
               <img
                 src="/gcf_logo.png"
-                alt="GCF"
+                alt="GCF Logo"
                 className="h-8 hidden md:block"
                 draggable={false}
               />
@@ -699,9 +699,7 @@ export default function App() {
               <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
 
               <div className="flex items-center gap-3 min-w-0">
-                <h2 className="font-bold text-gcf-black tracking-tight truncate">
-                  Comparativo de Biológicos
-                </h2>
+                <h2 className="font-bold text-gcf-black tracking-tight truncate">Comparativo de Biológicos</h2>
                 <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">
                   v2.0
                 </span>
@@ -734,7 +732,6 @@ export default function App() {
             </div>
           </header>
 
-          {/* Content */}
           <main className="flex-1 overflow-y-auto p-4 md:p-12">
             <div className="max-w-7xl mx-auto">
               <div className="mb-10 md:mb-16">
@@ -773,7 +770,9 @@ export default function App() {
                   {/* Custo diff */}
                   <div className="bg-gcf-green p-8 md:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                     <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
-                    <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
+                    <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
+                      Diferença Custo / ha
+                    </span>
                     {(() => {
                       const cropCusto = cropCalculated["Custo_R$_por_ha"];
                       const compCusto = compCalculated["Custo_R$_por_ha"];
@@ -890,7 +889,7 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Mobile quick action */}
+                {/* Mobile CTA */}
                 <div className="sm:hidden mt-8">
                   <button
                     type="button"

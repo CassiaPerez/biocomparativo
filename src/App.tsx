@@ -55,6 +55,8 @@ const INITIAL_CALCULATED: CalculatedValues = {
   'Custo_R$_por_ha': new Decimal(0),
 };
 
+type SciParts = { mantissa: string; exponent: string };
+
 // Scientific Input Component (Split View)
 const ScientificInput = ({
   value,
@@ -121,6 +123,7 @@ const ScientificInput = ({
     if (m === '' || m === '-') {
       setStatus('default');
       setMessage('');
+      onPartsChange?.(m, e);
       return;
     }
 
@@ -145,12 +148,12 @@ const ScientificInput = ({
         setMessage('');
       }
 
-      if (onPartsChange) onPartsChange(safeM, safeE);
-
+      onPartsChange?.(m, e);
       onChange(val.toString());
     } catch (_) {
       setStatus('error');
       setMessage('Número inválido');
+      onPartsChange?.(m, e);
     }
   };
 
@@ -264,6 +267,7 @@ const BigNumberDisplay = ({
         <span className="inline-flex items-baseline">
           <span className="text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
           <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
+          {/* ⚠️ aqui é UI, não PDF — pode manter */}
           <sup className="text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
         </span>
       );
@@ -306,12 +310,11 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // ✅ Guardar mantissa/expoente exatamente como digitado (para imprimir igual no PDF)
-  const [cropConcSci, setCropConcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
-  const [compConcSci, setCompConcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
-  const [cropUfcSci, setCropUfcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
-  const [compUfcSci, setCompUfcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
-
+  // ✅ guarda exatamente como foi digitado (mantissa/expoente) para o PDF
+  const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
+  const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
+  const [cropUfcParts, setCropUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
+  const [compUfcParts, setCompUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -376,10 +379,10 @@ export default function App() {
   const clearAll = () => {
     setCropData(INITIAL_STATE_CROPFIELD);
     setCompData(INITIAL_STATE_CONCORRENTE);
-    setCropConcSci({ m: '', e: '' });
-    setCompConcSci({ m: '', e: '' });
-    setCropUfcSci({ m: '', e: '' });
-    setCompUfcSci({ m: '', e: '' });
+    setCropConcParts({ mantissa: '', exponent: '' });
+    setCompConcParts({ mantissa: '', exponent: '' });
+    setCropUfcParts({ mantissa: '', exponent: '' });
+    setCompUfcParts({ mantissa: '', exponent: '' });
   };
 
   const downloadReportPdf = () => {
@@ -391,116 +394,45 @@ export default function App() {
       timeStyle: 'short',
     }).format(now);
 
-    // ---- Notação científica no PDF com expoente "elevado" (sem caracteres especiais) ----
-    // Em alguns ambientes, caracteres sobrescritos (¹²³) viram "letras"/garbage.
-    // Então desenhamos o expoente manualmente (fonte menor e deslocada para cima).
-    const sciParts = (d: Decimal, mantissaDigits = 1) => {
+    const safeDec = (raw: string) => {
       try {
-        if (!d || (d as any).isNaN?.()) return { base: '0', exp: '0' };
-        if (d.isZero()) return { base: '0', exp: '0' };
+        if (!raw) return null;
+        const d = new Decimal(raw);
+        if ((d as any).isNaN?.()) return null;
+        return d;
+      } catch {
+        return null;
+      }
+    };
 
-        const sci = d.toExponential(mantissaDigits); // ex: "-1.5e+12"
+    // Decimal -> "3.5x10^12" (string segura)
+    const toSciCaret = (d: Decimal, mantissaDigits = 1) => {
+      try {
+        if (!d || (d as any).isNaN?.()) return '0';
+        if (d.isZero()) return '0';
+        const sci = d.toExponential(mantissaDigits);
         const [mRaw, eRaw = '0'] = sci.split('e');
         const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
         const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
-
-        // usamos "x10" (ASCII) para evitar problemas de fonte no jsPDF
-        return { base: `${m}x10`, exp: e || '0' };
-      } catch {
-        return { base: '0', exp: '0' };
-      }
-    };
-
-    // Mantém o "formato do input" quando o usuário digita mantissa 10 (ex.: 10 × 10^9),
-    // mas internamente o Decimal normaliza para 1 × 10^10. No PDF, a Cassia quer ver o valor
-    // no mesmo estilo do campo (mantissa pode ser 10).
-    const sciPartsLikeInput = (d: Decimal, mantissaDigits = 1) => {
-      const p = sciParts(d, mantissaDigits);
-      try {
-        // p.base é algo como "1x10" ou "-1x10"
-        const mStr = p.base.replace('x10', '');
-        const mAbs = new Decimal(mStr).abs();
-        const expN = parseInt(p.exp || '0', 10);
-
-        // Se ficou exatamente 1×10^N, mostramos 10×10^(N-1) para refletir input "10 × 10^(...)"
-        if (mAbs.equals(1) && expN !== 0) {
-          const sign = new Decimal(mStr).isNegative() ? '-' : '';
-          return { base: `${sign}10x10`, exp: String(expN - 1) };
-        }
-      } catch (_) {}
-      return p;
-    };
-
-
-    // Partes científicas exatamente como digitadas no campo (mantissa/expoente).
-    // Isso é necessário porque o Decimal normaliza (ex.: 10×10^9 vira 1×10^10) e a Cassia quer imprimir igual ao input.
-    const sciPartsManual = (m: string, e: string) => {
-      const mm = (m ?? '').trim();
-      const ee = (e ?? '').trim();
-      if (!mm) return null;
-      const exp = ee === '' || ee === '-' ? '0' : ee.replace('+', '');
-      return { base: `${mm}x10`, exp };
-    };
-
-    // fallback legível quando NÃO vamos desenhar o expoente manualmente
-    const fmtScientificInline = (d: Decimal, mantissaDigits = 1) => {
-      const p = sciParts(d, mantissaDigits);
-      return `${p.base}^${p.exp}`;
-    };
-
-    const drawExponent = (data: any, baseText: string, expText: string) => {
-      try {
-        if (!expText) return;
-        const x = data.cell.textPos.x + doc.getTextWidth(baseText) + 1;
-        const y = data.cell.textPos.y - 4;
-        const prev = doc.getFontSize();
-        doc.setFontSize(7);
-        doc.text(String(expText), x, y);
-        doc.setFontSize(prev);
-      } catch (_) {}
-    };
-
-    const fmtDec = (d: Decimal) => {
-      try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
-
-        // Para números grandes, imprimir em notação científica (log) do jeito pedido
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificInline(d, 1);
-
-        // Para números menores, manter legível
-        if (d.abs().lt(1)) return d.toFixed(6);
-        return d.toFixed(2);
+        return `${m}x10^${e}`;
       } catch {
         return '0';
       }
     };
 
-    // Para diferenças por área (ex.: UFC/ha), o campo deve ser ABSOLUTO (sem %)
-    const fmtDeltaArea = (d: Decimal) => {
-      try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
-
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificInline(d, 1);
-        // Em geral, esse delta é usado como "unidade/área" e deve aparecer como número simples
-        return d.toFixed(0);
-      } catch {
-        return '0';
+    // Usa o que foi digitado (mantissa/expoente), sem normalizar
+    const partsToCaret = (parts: SciParts, fallbackDecimal?: Decimal | null) => {
+      const m = (parts.mantissa ?? '').trim();
+      const e = (parts.exponent ?? '').trim();
+      if (m && m !== '-' && (e !== '' && e !== '-')) {
+        const mant = m.replace(',', '.');
+        const exp = e.replace('+', '').trim();
+        return `${mant}x10^${exp === '' ? '0' : exp}`;
       }
+      // fallback: se não tiver "digitado", usa o decimal calculado
+      if (fallbackDecimal) return toSciCaret(fallbackDecimal, 1);
+      return '-';
     };
-
-    // Para diferenças pequenas (ex.: UFC/mm²), mostrar ABSOLUTO sem % e sem casas decimais
-    const fmtDeltaSmall = (d: Decimal) => {
-      try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
-        return d.toFixed(0);
-      } catch {
-        return '0';
-      }
-    };
-
 
     const fmtMoney = (d: Decimal) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -513,19 +445,53 @@ export default function App() {
         })()
       );
 
-    
-    const safeDec = (raw: string) => {
+    // Percentual de redução (ex.: 20%):
+    // redução = (Cropfield - Concorrente) / Cropfield * 100
+    const pctReduc = (crop: Decimal, comp: Decimal) => {
       try {
-        if (!raw) return null;
-        const d = new Decimal(raw);
-        if ((d as any).isNaN?.()) return null;
-        return d;
+        if (!crop || (crop as any).isNaN?.()) return null;
+        if (crop.isZero()) return null;
+        return crop.minus(comp).dividedBy(crop).times(100);
       } catch {
         return null;
       }
     };
 
-doc.setFont('helvetica', 'bold');
+    // ✅ desenha expoente elevado (SEM unicode sobrescrito — evita virar "p")
+    const drawExponentInCell = (data: any) => {
+      const raw = String(data.cell?.text?.[0] ?? '');
+      const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)$/);
+      if (!match) return;
+
+      const mantissa = match[1]; // mantém vírgula/ponto do texto
+      const exp = match[2];
+
+      // limpa o texto padrão (para não duplicar)
+      data.cell.text = [''];
+
+      const paddingLeft = data.cell.padding('left');
+      const x = data.cell.x + paddingLeft;
+
+      const baseFont = 10;
+      const expFont = 7;
+
+      const yMid = data.cell.y + data.cell.height / 2;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(baseFont);
+
+      const baseText = `${mantissa}x10`;
+      doc.text(baseText, x, yMid, { baseline: 'middle' } as any);
+
+      const baseW = doc.getTextWidth(baseText);
+
+      doc.setFontSize(expFont);
+      doc.text(exp, x + baseW + 1.5, yMid - 6, { baseline: 'middle' } as any);
+
+      doc.setFontSize(baseFont);
+    };
+
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text('Relatório — Comparativo de Biológicos', 40, 48);
 
@@ -537,97 +503,70 @@ doc.setFont('helvetica', 'bold');
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
 
-    // Preparar partes científicas que precisam de expoente elevado (tabela "Campo")
-    const concCrop = sciPartsManual(cropConcSci.m, cropConcSci.e) ?? (safeDec(cropData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null);
-    const concComp = sciPartsManual(compConcSci.m, compConcSci.e) ?? (safeDec(compData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null);
+    const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
+    const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
+
+    // Se o UFC/ha foi editado manualmente, imprime como digitado; senão imprime do cálculo
+    const cropUfcPdf = partsToCaret(cropUfcParts, cropCalculated.UFC_ou_conidios_ha);
+    const compUfcPdf = partsToCaret(compUfcParts, compCalculated.UFC_ou_conidios_ha);
 
     autoTable(doc, {
       startY: 92,
       head: [['Campo', 'Cropfield', 'Concorrente']],
       body: [
         ['Produto', cropData.Produto || '-', compData.Produto || '-'],
-        [
-          'Concentração (UFC/mL ou g)',
-          concCrop ? concCrop.base : '-',
-          concComp ? concComp.base : '-',
-        ],
+        ['Concentração (UFC/mL ou g)', cropConcPdf, compConcPdf],
         ['Dose (mL ou g/ha)', cropData.Dose_ha_ml_ou_g || '-', compData.Dose_ha_ml_ou_g || '-'],
         ['Custo (R$/L ou kg)', cropData['Custo_R$_por_L_ou_kg'] || '-', compData['Custo_R$_por_L_ou_kg'] || '-'],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
       theme: 'grid',
-      didDrawCell: (data: any) => {
-        // Linha 1 = "Concentração"; Col 1 = Cropfield; Col 2 = Concorrente
-        if (data.section !== 'body') return;
-        if (data.row.index !== 1) return;
-        if (data.column.index === 1 && concCrop) drawExponent(data, concCrop.base, concCrop.exp);
-        if (data.column.index === 2 && concComp) drawExponent(data, concComp.base, concComp.exp);
-      },
+      didDrawCell: drawExponentInCell,
     });
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
-
-    // Preparar partes científicas que precisam de expoente elevado (tabela "Métrica" - UFC/ha)
-    const ufcHaCrop = sciPartsManual(cropUfcSci.m, cropUfcSci.e) ?? sciParts(cropCalculated.UFC_ou_conidios_ha, 1);
-    const ufcHaComp = sciPartsManual(compUfcSci.m, compUfcSci.e) ?? sciParts(compCalculated.UFC_ou_conidios_ha, 1);
 
     autoTable(doc, {
       startY: yAfterInputs,
       head: [['Métrica', 'Cropfield', 'Concorrente']],
       body: [
-        ['UFC/ha', ufcHaCrop.base, ufcHaComp.base],
-        ['UFC/mm² (superfície)', fmtDec(cropCalculated.UFC_ou_conidios_mm2_superficie), fmtDec(compCalculated.UFC_ou_conidios_mm2_superficie)],
+        ['UFC/ha', cropUfcPdf, compUfcPdf],
+        ['UFC/mm² (superfície)', cropCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2), compCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2)],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
       theme: 'grid',
-      didDrawCell: (data: any) => {
-        // Linha 0 = "UFC/ha"; Col 1 = Cropfield; Col 2 = Concorrente
-        if (data.section !== 'body') return;
-        if (data.row.index !== 0) return;
-        if (data.column.index === 1) drawExponent(data, ufcHaCrop.base, ufcHaCrop.exp);
-        if (data.column.index === 2) drawExponent(data, ufcHaComp.base, ufcHaComp.exp);
-      },
+      didDrawCell: drawExponentInCell,
     });
 
     const yAfterResults = (doc as any).lastAutoTable.finalY + 18;
 
     const diffCusto = compCalculated['Custo_R$_por_ha'].minus(cropCalculated['Custo_R$_por_ha']);
-    const diffUfc = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
-    const diffMm2 = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
+    const diffUfcAbs = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
+    const diffMm2Abs = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
-    // Percentual de redução (Cropfield vs Concorrente): (Concorrente - Cropfield) / Concorrente
-    const pctReduc = (comp: Decimal, crop: Decimal) => {
-      try {
-        if (!comp || (comp as any).isNaN?.()) return null;
-        if (comp.isZero()) return null;
-        return comp.minus(crop).dividedBy(comp).times(100);
-      } catch {
-        return null;
-      }
-    };
+    const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
+    const reducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    const pctReducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
-    const pctReducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
-    const pctReducMm2 = pctReduc(cropCalculated.UFC_ou_conidios_mm2_superficie, compCalculated.UFC_ou_conidios_mm2_superficie);
+    const diffUfcAbsPdf = diffUfcAbs.abs().gte(new Decimal('1e6')) ? toSciCaret(diffUfcAbs, 1) : diffUfcAbs.toFixed(0);
 
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
-        // Percentual de redução (ex.: 20%)
-        ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],
-        ['Redução (%) Custo/ha', pctReducCusto ? `${pctReducCusto.abs().toFixed(0)}%` : '-'],
-        // Diferenças absolutas (unidade por área)
+        ['Redução (%) UFC/ha', reducUfc ? `${reducUfc.abs().toFixed(0)}%` : '-'],
+        ['Redução (%) Custo/ha', reducCusto ? `${reducCusto.abs().toFixed(0)}%` : '-'],
         ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
-        ['Δ UFC/ha (abs)', fmtDeltaArea(diffUfc)],
-        ['Δ UFC/mm² (abs)', fmtDeltaSmall(diffMm2)],
+        // ✅ precisa elevado também
+        ['UFC/ha (abs)', diffUfcAbsPdf],
+        ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
       theme: 'grid',
+      didDrawCell: drawExponentInCell,
     });
 
     const safe = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -679,8 +618,8 @@ doc.setFont('helvetica', 'bold');
                   value={data.Concentracao_por_ml_ou_g}
                   onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
                   onPartsChange={(m, e) => {
-                    if (isCompetitor) setCompConcSci({ m, e });
-                    else setCropConcSci({ m, e });
+                    if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
+                    else setCropConcParts({ mantissa: m, exponent: e });
                   }}
                   className="w-full font-mono text-gcf-black"
                   placeholder="Ex: 1e10"
@@ -732,8 +671,8 @@ doc.setFont('helvetica', 'bold');
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
                 onPartsChange={(m, e) => {
-                  if (isCompetitor) setCompUfcSci({ m, e });
-                  else setCropUfcSci({ m, e });
+                  if (isCompetitor) setCompUfcParts({ mantissa: m, exponent: e });
+                  else setCropUfcParts({ mantissa: m, exponent: e });
                 }}
                 className={`w-full font-mono text-xl font-bold ${
                   isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
@@ -868,6 +807,7 @@ doc.setFont('helvetica', 'bold');
           </div>
 
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
+            {/* ✅ Apenas 1 botão de download */}
             <button
               onClick={downloadReportPdf}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
@@ -974,8 +914,8 @@ doc.setFont('helvetica', 'bold');
                     }
 
                     const reducPercent = cropUfc.minus(compUfc).dividedBy(cropUfc).times(100);
-                      const isEqual = reducPercent.isZero();
-                      const isConcorrenteInferior = reducPercent.gt(0);
+                    const isEqual = reducPercent.isZero();
+                    const isConcorrenteInferior = reducPercent.gt(0);
 
                     return (
                       <>

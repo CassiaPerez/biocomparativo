@@ -267,7 +267,6 @@ const ScientificReadOnly = ({
   const getParts = () => {
     try {
       if (isZero) return { m: '0', e: '0' };
-      // 2 casas na mantissa (ajusta se quiser)
       const [mRaw, eRaw = '0'] = value.toExponential(2).split('e');
       const m = mRaw.replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '').replace('.', ',');
       const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
@@ -448,19 +447,19 @@ export default function App() {
       }
     };
 
-    // Decimal -> "3.5x10^12"
+    // Decimal -> "3.5 x 10^12"
     const toSciCaret = (d: Decimal, mantissaDigits = 1) => {
       try {
-        if (!d || (d as any).isNaN?.()) return '0x10^0';
-        if (d.isZero()) return '0x10^0';
+        if (!d || (d as any).isNaN?.()) return '0 x 10^0';
+        if (d.isZero()) return '0 x 10^0';
 
         const sci = d.toExponential(mantissaDigits);
         const [mRaw, eRaw = '0'] = sci.split('e');
         const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
         const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
-        return `${m}x10^${e}`;
+        return `${m} x 10^${e}`;
       } catch {
-        return '0x10^0';
+        return '0 x 10^0';
       }
     };
 
@@ -472,7 +471,7 @@ export default function App() {
       if (m && m !== '-') {
         const mant = m.replace(',', '.');
         const exp = e === '' || e === '-' ? '0' : e.replace('+', '').trim();
-        return `${mant}x10^${exp}`;
+        return `${mant} x 10^${exp}`;
       }
 
       if (fallback && !(fallback as any).isNaN?.() && !fallback.isZero()) return toSciCaret(fallback, 1);
@@ -501,38 +500,48 @@ export default function App() {
       }
     };
 
-    // ✅ PDF: desenha expoente elevado SEM caracteres unicode (evita virar letras)
-    // Entradas aceitas: "mantissax10^expoente"
+    // ✅ PDF: desenha expoente elevado manualmente, com espaço " x 10" (sem unicode quebrando)
+    // Aceita "2 x 10^9" e "2x10^9"
     const drawExponentInCell = (data: any) => {
-      const raw = String(data.cell?.text?.[0] ?? '');
-      const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)$/);
+      const raw = String(data.cell?.text?.[0] ?? '').trim();
+      const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)\s*x\s*10\^([+-]?\d+)\s*$/i);
       if (!match) return;
 
       const mantissa = match[1];
       const exp = match[2];
 
+      // remove texto padrão
       data.cell.text = [''];
 
+      // respeita cor do texto da célula
+      const tc = data.cell.styles?.textColor;
+      if (Array.isArray(tc)) doc.setTextColor(tc[0], tc[1], tc[2]);
+      else doc.setTextColor(0, 0, 0);
+
       const paddingLeft = data.cell.padding('left');
+
+      // posição base
       const x = data.cell.x + paddingLeft;
+      const y = data.cell.y + data.cell.height / 2;
 
       const baseFont = 10;
       const expFont = 7;
 
-      const yMid = data.cell.y + data.cell.height / 2;
-
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(baseFont);
 
-      const baseText = `${mantissa}x10`;
-      doc.text(baseText, x, yMid, { baseline: 'middle' } as any);
-
+      // "2 x 10"
+      const baseText = `${mantissa} x 10`;
+      doc.text(baseText, x, y, { baseline: 'middle' } as any);
       const baseW = doc.getTextWidth(baseText);
 
+      // expoente elevado
       doc.setFontSize(expFont);
-      doc.text(exp, x + baseW + 1.5, yMid - 6, { baseline: 'middle' } as any);
+      doc.text(exp, x + baseW + 2.5, y - 6, { baseline: 'middle' } as any);
 
+      // restaura
       doc.setFontSize(baseFont);
+      doc.setTextColor(0, 0, 0);
     };
 
     doc.setFont('helvetica', 'bold');
@@ -547,7 +556,7 @@ export default function App() {
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
 
-    // ✅ Concentração no PDF = exatamente preenchido
+    // ✅ Concentração no PDF = exatamente preenchido (mantissa + expoente)
     const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
@@ -568,7 +577,7 @@ export default function App() {
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
 
-    // ✅ UFC/ha automático no PDF: sempre do cálculo (não editável)
+    // ✅ UFC/ha automático no PDF: sempre do cálculo (Concentração × Dose)
     const cropUfcPdf = toSciCaret(cropCalculated.UFC_ou_conidios_ha, 2);
     const compUfcPdf = toSciCaret(compCalculated.UFC_ou_conidios_ha, 2);
 
@@ -597,7 +606,6 @@ export default function App() {
 
     const diffUfcAbsPdf = toSciCaret(diffUfcAbs, 2);
 
-    // ✅ TROCA DO TÍTULO (sem caracteres quebrados)
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],

@@ -376,67 +376,53 @@ export default function App() {
       timeStyle: 'short',
     }).format(now);
 
-    // --------- helpers de notação científica COM expoente elevado ----------
-    const toSuperscript = (input: string | number) => {
-      const map: Record<string, string> = {
-        '0': '⁰',
-        '1': '¹',
-        '2': '²',
-        '3': '³',
-        '4': '⁴',
-        '5': '⁵',
-        '6': '⁶',
-        '7': '⁷',
-        '8': '⁸',
-        '9': '⁹',
-        '+': '⁺',
-        '-': '⁻',
-      };
-      return String(input)
-        .split('')
-        .map((ch) => map[ch] ?? ch)
-        .join('');
-    };
-
-    // ex: -1.5×10¹² (sem ^ e com expoente elevado)
-    const fmtScientificSup = (d: Decimal, mantissaDigits = 1) => {
+    // ---- Notação científica no PDF com expoente "elevado" (sem caracteres especiais) ----
+    // Em alguns ambientes, caracteres sobrescritos (¹²³) viram "letras"/garbage.
+    // Então desenhamos o expoente manualmente (fonte menor e deslocada para cima).
+    const sciParts = (d: Decimal, mantissaDigits = 1) => {
       try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
+        if (!d || (d as any).isNaN?.()) return { base: '0', exp: '0' };
+        if (d.isZero()) return { base: '0', exp: '0' };
 
-        const sci = d.toExponential(mantissaDigits); // "-1.5e+12"
+        const sci = d.toExponential(mantissaDigits); // ex: "-1.5e+12"
         const [mRaw, eRaw = '0'] = sci.split('e');
+        const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
+        const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
 
-        const mantissa = mRaw
-          .replace(/\.0+$/, '')
-          .replace(/(\.[0-9]*?)0+$/, '$1');
-
-        const exp = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
-        return `${mantissa}×10${toSuperscript(exp)}`;
+        // usamos "x10" (ASCII) para evitar problemas de fonte no jsPDF
+        return { base: `${m}x10`, exp: e || '0' };
       } catch {
-        return '0';
+        return { base: '0', exp: '0' };
       }
     };
 
-    const safeDec = (raw: string) => {
+    // fallback legível quando NÃO vamos desenhar o expoente manualmente
+    const fmtScientificInline = (d: Decimal, mantissaDigits = 1) => {
+      const p = sciParts(d, mantissaDigits);
+      return `${p.base}^${p.exp}`;
+    };
+
+    const drawExponent = (data: any, baseText: string, expText: string) => {
       try {
-        if (!raw) return null;
-        const d = new Decimal(raw);
-        if ((d as any).isNaN?.()) return null;
-        return d;
-      } catch {
-        return null;
-      }
+        if (!expText) return;
+        const x = data.cell.textPos.x + doc.getTextWidth(baseText) + 1;
+        const y = data.cell.textPos.y - 4;
+        const prev = doc.getFontSize();
+        doc.setFontSize(7);
+        doc.text(String(expText), x, y);
+        doc.setFontSize(prev);
+      } catch (_) {}
     };
 
-    // usa notação científica elevada para valores grandes
     const fmtDec = (d: Decimal) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0';
         if (d.isZero()) return '0';
 
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificSup(d, 1);
+        // Para números grandes, imprimir em notação científica (log) do jeito pedido
+        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificInline(d, 1);
 
+        // Para números menores, manter legível
         if (d.abs().lt(1)) return d.toFixed(6);
         return d.toFixed(2);
       } catch {
@@ -444,18 +430,31 @@ export default function App() {
       }
     };
 
-    // ABSOLUTO (unidade por área), sem %
-    const fmtDeltaAreaAbs = (d: Decimal) => {
+    // Para diferenças por área (ex.: UFC/ha), o campo deve ser ABSOLUTO (sem %)
+    const fmtDeltaArea = (d: Decimal) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0';
         if (d.isZero()) return '0';
 
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificSup(d, 1);
+        if (d.abs().gte(new Decimal('1e6'))) return fmtScientificInline(d, 1);
+        // Em geral, esse delta é usado como "unidade/área" e deve aparecer como número simples
         return d.toFixed(0);
       } catch {
         return '0';
       }
     };
+
+    // Para diferenças pequenas (ex.: UFC/mm²), mostrar ABSOLUTO sem % e sem casas decimais
+    const fmtDeltaSmall = (d: Decimal) => {
+      try {
+        if (!d || (d as any).isNaN?.()) return '0';
+        if (d.isZero()) return '0';
+        return d.toFixed(0);
+      } catch {
+        return '0';
+      }
+    };
+
 
     const fmtMoney = (d: Decimal) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -468,21 +467,19 @@ export default function App() {
         })()
       );
 
-    // Percentual de redução (ex.: 20%):
-    // redução = (Cropfield - Concorrente) / Cropfield * 100
-    const pctReduc = (crop: Decimal, comp: Decimal) => {
+    
+    const safeDec = (raw: string) => {
       try {
-        if (!crop || (crop as any).isNaN?.()) return null;
-        if (crop.isZero()) return null;
-        return crop.minus(comp).dividedBy(crop).times(100);
+        if (!raw) return null;
+        const d = new Decimal(raw);
+        if ((d as any).isNaN?.()) return null;
+        return d;
       } catch {
         return null;
       }
     };
 
-    // ---------------------------------------------------------------------
-
-    doc.setFont('helvetica', 'bold');
+doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text('Relatório — Comparativo de Biológicos', 40, 48);
 
@@ -494,7 +491,10 @@ export default function App() {
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
 
-    // Tabela de Campo (Concentração em notação científica elevada)
+    // Preparar partes científicas que precisam de expoente elevado (tabela "Campo")
+    const concCrop = safeDec(cropData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null;
+    const concComp = safeDec(compData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null;
+
     autoTable(doc, {
       startY: 92,
       head: [['Campo', 'Cropfield', 'Concorrente']],
@@ -502,8 +502,8 @@ export default function App() {
         ['Produto', cropData.Produto || '-', compData.Produto || '-'],
         [
           'Concentração (UFC/mL ou g)',
-          safeDec(cropData.Concentracao_por_ml_ou_g) ? fmtScientificSup(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : '-',
-          safeDec(compData.Concentracao_por_ml_ou_g) ? fmtScientificSup(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : '-',
+          concCrop ? concCrop.base : '-',
+          concComp ? concComp.base : '-',
         ],
         ['Dose (mL ou g/ha)', cropData.Dose_ha_ml_ou_g || '-', compData.Dose_ha_ml_ou_g || '-'],
         ['Custo (R$/L ou kg)', cropData['Custo_R$_por_L_ou_kg'] || '-', compData['Custo_R$_por_L_ou_kg'] || '-'],
@@ -511,44 +511,73 @@ export default function App() {
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
       theme: 'grid',
+      didDrawCell: (data: any) => {
+        // Linha 1 = "Concentração"; Col 1 = Cropfield; Col 2 = Concorrente
+        if (data.section !== 'body') return;
+        if (data.row.index !== 1) return;
+        if (data.column.index === 1 && concCrop) drawExponent(data, concCrop.base, concCrop.exp);
+        if (data.column.index === 2 && concComp) drawExponent(data, concComp.base, concComp.exp);
+      },
     });
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
 
-    // Tabela de Métrica (UFC/ha em notação científica elevada)
+    // Preparar partes científicas que precisam de expoente elevado (tabela "Métrica" - UFC/ha)
+    const ufcHaCrop = sciParts(cropCalculated.UFC_ou_conidios_ha, 1);
+    const ufcHaComp = sciParts(compCalculated.UFC_ou_conidios_ha, 1);
+
     autoTable(doc, {
       startY: yAfterInputs,
       head: [['Métrica', 'Cropfield', 'Concorrente']],
       body: [
-        ['UFC/ha', fmtScientificSup(cropCalculated.UFC_ou_conidios_ha, 1), fmtScientificSup(compCalculated.UFC_ou_conidios_ha, 1)],
+        ['UFC/ha', ufcHaCrop.base, ufcHaComp.base],
         ['UFC/mm² (superfície)', fmtDec(cropCalculated.UFC_ou_conidios_mm2_superficie), fmtDec(compCalculated.UFC_ou_conidios_mm2_superficie)],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
       theme: 'grid',
+      didDrawCell: (data: any) => {
+        // Linha 0 = "UFC/ha"; Col 1 = Cropfield; Col 2 = Concorrente
+        if (data.section !== 'body') return;
+        if (data.row.index !== 0) return;
+        if (data.column.index === 1) drawExponent(data, ufcHaCrop.base, ufcHaCrop.exp);
+        if (data.column.index === 2) drawExponent(data, ufcHaComp.base, ufcHaComp.exp);
+      },
     });
 
     const yAfterResults = (doc as any).lastAutoTable.finalY + 18;
 
-    // Diferenças
     const diffCusto = compCalculated['Custo_R$_por_ha'].minus(cropCalculated['Custo_R$_por_ha']);
+    const diffUfc = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
     const diffMm2 = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
-    const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha); // ex.: 20%
+    // Percentual de redução (Cropfield vs Concorrente): (Concorrente - Cropfield) / Concorrente
+    const pctReduc = (comp: Decimal, crop: Decimal) => {
+      try {
+        if (!comp || (comp as any).isNaN?.()) return null;
+        if (comp.isZero()) return null;
+        return comp.minus(crop).dividedBy(comp).times(100);
+      } catch {
+        return null;
+      }
+    };
+
+    const pctReducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
+    const pctReducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
+    const pctReducMm2 = pctReduc(cropCalculated.UFC_ou_conidios_mm2_superficie, compCalculated.UFC_ou_conidios_mm2_superficie);
 
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
-        // ✅ Imagem 3: aqui vira percentual de redução (ex.: 20%)
-        ['Redução UFC/ha', reducUfc ? `${reducUfc.abs().toFixed(0)}%` : '-'],
-
-        // Custo (mantém absoluto em dinheiro)
-        ['Δ Custo/ha', fmtMoney(diffCusto)],
-
-        // ✅ Imagem 4: UFC/mm² absoluto (sem %), ex.: -20
-        ['Δ UFC/mm²', fmtDeltaAreaAbs(diffMm2)],
+        // Percentual de redução (ex.: 20%)
+        ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],
+        ['Redução (%) Custo/ha', pctReducCusto ? `${pctReducCusto.abs().toFixed(0)}%` : '-'],
+        // Diferenças absolutas (unidade por área)
+        ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
+        ['Δ UFC/ha (abs)', fmtDeltaArea(diffUfc)],
+        ['Δ UFC/mm² (abs)', fmtDeltaSmall(diffMm2)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
@@ -785,7 +814,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
-            {/* ✅ Apenas 1 botão de download */}
             <button
               onClick={downloadReportPdf}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
@@ -892,8 +920,8 @@ export default function App() {
                     }
 
                     const reducPercent = cropUfc.minus(compUfc).dividedBy(cropUfc).times(100);
-                    const isEqual = reducPercent.isZero();
-                    const isConcorrenteInferior = reducPercent.gt(0);
+                      const isEqual = reducPercent.isZero();
+                      const isConcorrenteInferior = reducPercent.gt(0);
 
                     return (
                       <>

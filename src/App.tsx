@@ -569,7 +569,7 @@ doc.setFont('helvetica', 'bold');
 
     autoTable(doc, {
       startY: yAfterResults,
-      head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
+      head: [['Análise Técnica/Comercial do Concorrente)', 'Valor']],
       body: [
         // Percentual de redução (ex.: 20%)
         ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],

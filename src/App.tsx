@@ -376,15 +376,63 @@ export default function App() {
       timeStyle: 'short',
     }).format(now);
 
+    // Formatação para PDF (evita "1e+10" e usa "1x10^10")
+    const fmtScientific = (d: Decimal, mantissaDigits = 1) => {
+      try {
+        if (!d || (d as any).isNaN?.()) return '0';
+        if (d.isZero()) return '0';
+
+        const sci = d.toExponential(mantissaDigits);
+        const [mRaw, eRaw] = sci.split('e');
+        const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
+        const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
+        return `${m}x10^${e}`;
+      } catch {
+        return '0';
+      }
+    };
+
     const fmtDec = (d: Decimal) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0';
-        if (d.abs().gte(new Decimal('1e9'))) return d.toExponential(2);
+        if (d.isZero()) return '0';
+
+        // Para números grandes, imprimir em notação científica (log) do jeito pedido
+        if (d.abs().gte(new Decimal('1e6'))) return fmtScientific(d, 1);
+
+        // Para números menores, manter legível
+        if (d.abs().lt(1)) return d.toFixed(6);
         return d.toFixed(2);
       } catch {
         return '0';
       }
     };
+
+    // Para diferenças por área (ex.: UFC/ha), o campo deve ser ABSOLUTO (sem %)
+    const fmtDeltaArea = (d: Decimal) => {
+      try {
+        if (!d || (d as any).isNaN?.()) return '0';
+        if (d.isZero()) return '0';
+
+        if (d.abs().gte(new Decimal('1e6'))) return fmtScientific(d, 1);
+        // Em geral, esse delta é usado como "unidade/área" e deve aparecer como número simples
+        return d.toFixed(0);
+      } catch {
+        return '0';
+      }
+    };
+
+    // Para diferenças pequenas (ex.: UFC/mm²), mostrar ABSOLUTO sem % e sem casas decimais
+    const fmtDeltaSmall = (d: Decimal) => {
+      try {
+        if (!d || (d as any).isNaN?.()) return '0';
+        if (d.isZero()) return '0';
+        return d.toFixed(0);
+      } catch {
+        return '0';
+      }
+    };
+
 
     const fmtMoney = (d: Decimal) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -397,7 +445,19 @@ export default function App() {
         })()
       );
 
-    doc.setFont('helvetica', 'bold');
+    
+    const safeDec = (raw: string) => {
+      try {
+        if (!raw) return null;
+        const d = new Decimal(raw);
+        if ((d as any).isNaN?.()) return null;
+        return d;
+      } catch {
+        return null;
+      }
+    };
+
+doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text('Relatório — Comparativo de Biológicos', 40, 48);
 
@@ -414,7 +474,7 @@ export default function App() {
       head: [['Campo', 'Cropfield', 'Concorrente']],
       body: [
         ['Produto', cropData.Produto || '-', compData.Produto || '-'],
-        ['Concentração (UFC/mL ou g)', cropData.Concentracao_por_ml_ou_g || '-', compData.Concentracao_por_ml_ou_g || '-'],
+        ['Concentração (UFC/mL ou g)', (safeDec(cropData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(cropData.Concentracao_por_ml_ou_g)!) : '-'), (safeDec(compData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(compData.Concentracao_por_ml_ou_g)!) : '-')],
         ['Dose (mL ou g/ha)', cropData.Dose_ha_ml_ou_g || '-', compData.Dose_ha_ml_ou_g || '-'],
         ['Custo (R$/L ou kg)', cropData['Custo_R$_por_L_ou_kg'] || '-', compData['Custo_R$_por_L_ou_kg'] || '-'],
       ],
@@ -444,13 +504,32 @@ export default function App() {
     const diffUfc = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
     const diffMm2 = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
+    // Percentual de redução (Cropfield vs Concorrente): (Concorrente - Cropfield) / Concorrente
+    const pctReduc = (comp: Decimal, crop: Decimal) => {
+      try {
+        if (!comp || (comp as any).isNaN?.()) return null;
+        if (comp.isZero()) return null;
+        return comp.minus(crop).dividedBy(comp).times(100);
+      } catch {
+        return null;
+      }
+    };
+
+    const pctReducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
+    const pctReducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
+    const pctReducMm2 = pctReduc(cropCalculated.UFC_ou_conidios_mm2_superficie, compCalculated.UFC_ou_conidios_mm2_superficie);
+
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
-        ['Δ Custo/ha', fmtMoney(diffCusto)],
-        ['Δ UFC/ha', fmtDec(diffUfc)],
-        ['Δ UFC/mm²', fmtDec(diffMm2)],
+        // Percentual de redução (ex.: 20%)
+        ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],
+        ['Redução (%) Custo/ha', pctReducCusto ? `${pctReducCusto.abs().toFixed(0)}%` : '-'],
+        // Diferenças absolutas (unidade por área)
+        ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
+        ['Δ UFC/ha (abs)', fmtDeltaArea(diffUfc)],
+        ['Δ UFC/mm² (abs)', fmtDeltaSmall(diffMm2)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
@@ -792,39 +871,39 @@ export default function App() {
                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
                     }
 
-                    const diffPercent = compUfc.minus(cropUfc).dividedBy(cropUfc).times(100);
-                    const isSuperior = diffPercent.gt(0);
-                    const isEqual = diffPercent.isZero();
+                    const reducPercent = cropUfc.minus(compUfc).dividedBy(cropUfc).times(100);
+                      const isEqual = reducPercent.isZero();
+                      const isConcorrenteInferior = reducPercent.gt(0);
 
                     return (
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            isEqual ? 'text-gcf-black' : isConcorrenteInferior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
-                          {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                          {isEqual ? '0%' : `${reducPercent.abs().toFixed(0)}%`}
                         </div>
                         <div
                           className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${
                             isEqual
                               ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10'
-                              : isSuperior
+                              : isConcorrenteInferior
                                 ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
                                 : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
                           }`}
                         >
                           {isEqual ? (
                             <span>Mesma concentração</span>
-                          ) : isSuperior ? (
-                            <>
-                              <TrendingUp size={14} />
-                              <span>Concorrente superior</span>
-                            </>
-                          ) : (
+                          ) : isConcorrenteInferior ? (
                             <>
                               <TrendingDown size={14} />
                               <span>Concorrente inferior</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingUp size={14} />
+                              <span>Concorrente superior</span>
                             </>
                           )}
                         </div>
@@ -843,20 +922,22 @@ export default function App() {
                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
                     }
 
-                    const diffPercent = compUfcMm2.minus(cropUfcMm2).dividedBy(cropUfcMm2).times(100);
-                    const isSuperior = diffPercent.gt(0);
-                    const isEqual = diffPercent.isZero();
+                    const diffAbs = compUfcMm2.minus(cropUfcMm2);
+                    const isEqual = diffAbs.isZero();
+                    const isConcorrenteSuperior = diffAbs.gt(0);
 
                     return (
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
-                          {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                          {isEqual ? '0' : diffAbs.toFixed(0)}
                         </div>
-                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Concentração na Superfície</div>
+                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
+                          {isEqual ? 'Sem diferença' : isConcorrenteSuperior ? 'Concorrente superior' : 'Concorrente inferior'}
+                        </div>
                       </>
                     );
                   })()}

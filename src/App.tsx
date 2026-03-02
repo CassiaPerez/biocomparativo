@@ -597,9 +597,10 @@ export default function App() {
 
     const diffUfcAbsPdf = toSciCaret(diffUfcAbs, 2);
 
+    // ✅ TROCA DO TÍTULO (sem caracteres quebrados)
     autoTable(doc, {
       startY: yAfterResults,
-      head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
+      head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],
       body: [
         ['Redução (%) UFC/ha', reducUfc ? `${reducUfc.abs().toFixed(0)}%` : '-'],
         ['Redução (%) Custo/ha', reducCusto ? `${reducCusto.abs().toFixed(0)}%` : '-'],
@@ -734,7 +735,10 @@ export default function App() {
                 </span>
               </div>
               <div className="bg-gcf-black/5 p-6 rounded-[14px] border border-gcf-black/5">
-                <BigNumberDisplay value={calculated.UFC_ou_conidios_mm2_superficie} colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'} />
+                <BigNumberDisplay
+                  value={calculated.UFC_ou_conidios_mm2_superficie}
+                  colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'}
+                />
                 <p className="text-[9px] text-gcf-black/40 mt-3 font-bold uppercase tracking-widest">Fórmula: UFC/ha ÷ 10¹⁰</p>
               </div>
             </div>
@@ -746,12 +750,18 @@ export default function App() {
                   Comercial
                 </span>
               </div>
-              <div className={`p-6 rounded-[14px] shadow-lg ${isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'}`}>
+              <div
+                className={`p-6 rounded-[14px] shadow-lg ${
+                  isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'
+                }`}
+              >
                 <div className="text-3xl font-bold font-mono text-gcf-offwhite tracking-tighter">
                   <span className="text-gcf-offwhite/50 text-sm mr-2">R$</span>
                   {calculated['Custo_R$_por_ha'].toFixed(2).replace('.', ',')}
                 </div>
-                <p className="text-[9px] text-gcf-offwhite/50 mt-3 font-bold uppercase tracking-widest">Fórmula: (Dose × Custo) ÷ 1.000</p>
+                <p className="text-[9px] text-gcf-offwhite/50 mt-3 font-bold uppercase tracking-widest">
+                  Fórmula: (Dose × Custo) ÷ 1.000
+                </p>
               </div>
             </div>
           </div>
@@ -767,7 +777,12 @@ export default function App() {
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden relative">
       {/* Backdrop (mobile) */}
       {isSidebarOpen && (
-        <button type="button" aria-label="Fechar menu" onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/50 z-40 lg:hidden" />
+        <button
+          type="button"
+          aria-label="Fechar menu"
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+        />
       )}
 
       {/* Sidebar */}
@@ -795,11 +810,16 @@ export default function App() {
             <button
               key={idx}
               className={`w-full flex items-center gap-4 px-4 py-3 rounded-[12px] transition-all group ${
-                item.active ? 'bg-gcf-green text-gcf-offwhite shadow-lg shadow-gcf-green/20' : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
+                item.active
+                  ? 'bg-gcf-green text-gcf-offwhite shadow-lg shadow-gcf-green/20'
+                  : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
               }`}
               type="button"
             >
-              <item.icon size={20} className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'} />
+              <item.icon
+                size={20}
+                className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'}
+              />
               {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
             </button>
           ))}
@@ -836,18 +856,29 @@ export default function App() {
             <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
             <div className="flex items-center gap-4">
               <h2 className="font-bold text-gcf-black tracking-tight">Comparativo de Biológicos</h2>
-              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">v2.0</span>
+              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">
+                v2.0
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
             {/* ✅ apenas um botão de download */}
-            <button onClick={downloadReportPdf} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button" title="Baixar relatório em PDF">
+            <button
+              onClick={downloadReportPdf}
+              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+              type="button"
+              title="Baixar relatório em PDF"
+            >
               <Download size={14} />
               <span className="hidden sm:inline">Baixar PDF</span>
             </button>
 
-            <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
+            <button
+              onClick={clearAll}
+              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+              type="button"
+            >
               <Trash2 size={14} />
               <span className="hidden sm:inline">Limpar Dados</span>
             </button>
@@ -894,13 +925,17 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                 <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
-                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
+                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
+                    Diferença Custo / ha
+                  </span>
                   {(() => {
                     const cropCusto = cropCalculated['Custo_R$_por_ha'];
                     const compCusto = compCalculated['Custo_R$_por_ha'];
 
                     if (cropCusto.isZero()) {
-                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>;
+                      return (
+                        <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>
+                      );
                     }
 
                     const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
@@ -933,7 +968,9 @@ export default function App() {
                 </div>
 
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">
+                    Diferença UFC / ha
+                  </span>
                   {(() => {
                     const cropUfc = cropCalculated.UFC_ou_conidios_ha;
                     const compUfc = compCalculated.UFC_ou_conidios_ha;
@@ -950,7 +987,11 @@ export default function App() {
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isConcorrenteInferior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            isEqual
+                              ? 'text-gcf-black'
+                              : isConcorrenteInferior
+                                ? 'text-gcf-green'
+                                : 'text-gcf-black/60'
                           }`}
                         >
                           {isEqual ? '0%' : `${reducPercent.abs().toFixed(0)}%`}
@@ -984,7 +1025,9 @@ export default function App() {
                 </div>
 
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">
+                    Diferença UFC / mm²
+                  </span>
                   {(() => {
                     const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
                     const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
@@ -1001,7 +1044,11 @@ export default function App() {
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            isEqual
+                              ? 'text-gcf-black'
+                              : isConcorrenteSuperior
+                                ? 'text-gcf-green'
+                                : 'text-gcf-black/60'
                           }`}
                         >
                           {isEqual ? '0' : diffAbs.toFixed(0)}

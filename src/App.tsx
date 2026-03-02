@@ -59,11 +59,13 @@ const INITIAL_CALCULATED: CalculatedValues = {
 const ScientificInput = ({
   value,
   onChange,
+  onPartsChange,
   placeholder,
   className,
 }: {
   value: string;
   onChange: (val: string) => void;
+  onPartsChange?: (mantissa: string, exponent: string) => void;
   placeholder?: string;
   className?: string;
 }) => {
@@ -142,6 +144,8 @@ const ScientificInput = ({
         setStatus('default');
         setMessage('');
       }
+
+      if (onPartsChange) onPartsChange(safeM, safeE);
 
       onChange(val.toString());
     } catch (_) {
@@ -302,6 +306,13 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
+  // ✅ Guardar mantissa/expoente exatamente como digitado (para imprimir igual no PDF)
+  const [cropConcSci, setCropConcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
+  const [compConcSci, setCompConcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
+  const [cropUfcSci, setCropUfcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
+  const [compUfcSci, setCompUfcSci] = useState<{ m: string; e: string }>({ m: '', e: '' });
+
+
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
       const conc = new Decimal(data.Concentracao_por_ml_ou_g || 0);
@@ -365,6 +376,10 @@ export default function App() {
   const clearAll = () => {
     setCropData(INITIAL_STATE_CROPFIELD);
     setCompData(INITIAL_STATE_CONCORRENTE);
+    setCropConcSci({ m: '', e: '' });
+    setCompConcSci({ m: '', e: '' });
+    setCropUfcSci({ m: '', e: '' });
+    setCompUfcSci({ m: '', e: '' });
   };
 
   const downloadReportPdf = () => {
@@ -414,6 +429,17 @@ export default function App() {
         }
       } catch (_) {}
       return p;
+    };
+
+
+    // Partes científicas exatamente como digitadas no campo (mantissa/expoente).
+    // Isso é necessário porque o Decimal normaliza (ex.: 10×10^9 vira 1×10^10) e a Cassia quer imprimir igual ao input.
+    const sciPartsManual = (m: string, e: string) => {
+      const mm = (m ?? '').trim();
+      const ee = (e ?? '').trim();
+      if (!mm) return null;
+      const exp = ee === '' || ee === '-' ? '0' : ee.replace('+', '');
+      return { base: `${mm}x10`, exp };
     };
 
     // fallback legível quando NÃO vamos desenhar o expoente manualmente
@@ -512,8 +538,8 @@ doc.setFont('helvetica', 'bold');
     doc.line(40, 78, 555, 78);
 
     // Preparar partes científicas que precisam de expoente elevado (tabela "Campo")
-    const concCrop = safeDec(cropData.Concentracao_por_ml_ou_g) ? sciPartsLikeInput(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null;
-    const concComp = safeDec(compData.Concentracao_por_ml_ou_g) ? sciPartsLikeInput(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null;
+    const concCrop = sciPartsManual(cropConcSci.m, cropConcSci.e) ?? (safeDec(cropData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null);
+    const concComp = sciPartsManual(compConcSci.m, compConcSci.e) ?? (safeDec(compData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null);
 
     autoTable(doc, {
       startY: 92,
@@ -543,8 +569,8 @@ doc.setFont('helvetica', 'bold');
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
 
     // Preparar partes científicas que precisam de expoente elevado (tabela "Métrica" - UFC/ha)
-    const ufcHaCrop = sciParts(cropCalculated.UFC_ou_conidios_ha, 1);
-    const ufcHaComp = sciParts(compCalculated.UFC_ou_conidios_ha, 1);
+    const ufcHaCrop = sciPartsManual(cropUfcSci.m, cropUfcSci.e) ?? sciParts(cropCalculated.UFC_ou_conidios_ha, 1);
+    const ufcHaComp = sciPartsManual(compUfcSci.m, compUfcSci.e) ?? sciParts(compCalculated.UFC_ou_conidios_ha, 1);
 
     autoTable(doc, {
       startY: yAfterInputs,
@@ -652,6 +678,10 @@ doc.setFont('helvetica', 'bold');
                 <ScientificInput
                   value={data.Concentracao_por_ml_ou_g}
                   onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
+                  onPartsChange={(m, e) => {
+                    if (isCompetitor) setCompConcSci({ m, e });
+                    else setCropConcSci({ m, e });
+                  }}
                   className="w-full font-mono text-gcf-black"
                   placeholder="Ex: 1e10"
                 />
@@ -701,6 +731,10 @@ doc.setFont('helvetica', 'bold');
               <ScientificInput
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
+                onPartsChange={(m, e) => {
+                  if (isCompetitor) setCompUfcSci({ m, e });
+                  else setCropUfcSci({ m, e });
+                }}
                 className={`w-full font-mono text-xl font-bold ${
                   isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
                 }`}

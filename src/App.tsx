@@ -491,15 +491,24 @@ export default function App() {
         })()
       );
 
-    // redução = (Cropfield - Concorrente) / Cropfield * 100
-    const pctReduc = (crop: Decimal, comp: Decimal) => {
+    // ✅ variação do concorrente vs cropfield: (concorrente - cropfield) / cropfield * 100
+    // → fica NEGATIVO quando concorrente é inferior (ex.: -96%)
+    const pctConcVsCrop = (crop: Decimal, comp: Decimal) => {
       try {
         if (!crop || (crop as any).isNaN?.()) return null;
         if (crop.isZero()) return null;
-        return crop.minus(comp).dividedBy(crop).times(100);
+        return comp.minus(crop).dividedBy(crop).times(100);
       } catch {
         return null;
       }
+    };
+
+    const fmtPctSigned = (p: Decimal | null) => {
+      if (!p) return '-';
+      const v = p.toDecimalPlaces(0);
+      const n = v.toNumber();
+      if (n === 0) return '0%';
+      return `${n > 0 ? '+' : ''}${v.toFixed(0)}%`;
     };
 
     // ✅ desenhar como "2x10⁹" (expoente elevado uma única vez)
@@ -599,7 +608,11 @@ export default function App() {
       head: [['Métrica', 'Cropfield', 'Concorrente']],
       body: [
         ['UFC/ha', cropUfcPdf, compUfcPdf],
-        ['UFC/mm² (superfície)', cropCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2), compCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2)],
+        [
+          'UFC/mm² (superfície)',
+          cropCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2),
+          compCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2),
+        ],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
@@ -611,23 +624,19 @@ export default function App() {
 
     const yAfterResults = (doc as any).lastAutoTable.finalY + 18;
 
-    const diffCusto = compCalculated['Custo_R$_por_ha'].minus(cropCalculated['Custo_R$_por_ha']);
-    const diffUfcAbs = compCalculated.UFC_ou_conidios_ha.minus(cropCalculated.UFC_ou_conidios_ha);
     const diffMm2Abs = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
-    const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
-    const reducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
-
-    const diffUfcAbsPdf = toSciToken(diffUfcAbs, 2);
+    // ✅ percentuais com sinal (negativo quando concorrente é inferior)
+    const reducUfc = pctConcVsCrop(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
+    const reducCusto = pctConcVsCrop(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],
       body: [
-        ['Redução (%) UFC/ha', reducUfc ? `${reducUfc.abs().toFixed(0)}%` : '-'],
-        ['Redução (%) Custo/ha', reducCusto ? `${reducCusto.abs().toFixed(0)}%` : '-'],
-        ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
-        ['UFC/ha (abs)', diffUfcAbsPdf],
+        ['Redução (%) UFC/ha', fmtPctSigned(reducUfc)],
+        ['Redução (%) Custo/ha', fmtPctSigned(reducCusto)],
+        // ✅ NÃO incluir custo/ha(abs) e UFC/ha(abs) (removidos conforme pedido)
         ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },

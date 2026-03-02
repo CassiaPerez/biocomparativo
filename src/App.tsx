@@ -86,9 +86,7 @@ const ScientificInput = ({
 
   useEffect(() => {
     // ✅ Se preserveUserDisplay=true: não reescreve mantissa/expoente a partir do "value"
-    // (evita normalização do Decimal: 10e9 -> 1e10)
     if (preserveUserDisplay) {
-      // mas se limpou o value e não está digitando, limpa o display
       if (!value && !isDirty) {
         setMantissa('');
         setExponent('');
@@ -142,7 +140,7 @@ const ScientificInput = ({
     }
 
     try {
-      if (isNaN(Number(m))) throw new Error();
+      if (isNaN(Number(m.replace(',', '.')))) throw new Error();
       if (e !== '' && e !== '-' && isNaN(Number(e))) throw new Error();
 
       const safeM = m.replace(',', '.');
@@ -162,9 +160,7 @@ const ScientificInput = ({
         setMessage('');
       }
 
-      // ✅ guarda exatamente as parts que o usuário digitou
       onPartsChange?.(m, e);
-
       onChange(val.toString());
     } catch (_) {
       setStatus('error');
@@ -256,6 +252,56 @@ const ScientificInput = ({
   );
 };
 
+// ✅ UFC/ha deve ser automático: display somente leitura com notação científica
+const ScientificReadOnly = ({
+  value,
+  className,
+  accent = false,
+}: {
+  value: Decimal;
+  className?: string;
+  accent?: boolean;
+}) => {
+  const isZero = !value || (value as any).isNaN?.() || value.isZero();
+
+  const getParts = () => {
+    try {
+      if (isZero) return { m: '0', e: '0' };
+      // 2 casas na mantissa (ajusta se quiser)
+      const [mRaw, eRaw = '0'] = value.toExponential(2).split('e');
+      const m = mRaw.replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '').replace('.', ',');
+      const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
+      return { m, e };
+    } catch {
+      return { m: '0', e: '0' };
+    }
+  };
+
+  const { m, e } = getParts();
+
+  return (
+    <div
+      className={`group flex items-center bg-white border rounded-[14px] px-4 py-4 transition-all shadow-sm border-[rgba(41,44,45,0.12)] ${
+        accent ? 'bg-gcf-green/5 border-gcf-green/20' : 'bg-gcf-black/5 border-gcf-black/10'
+      } ${className ?? ''}`}
+    >
+      <div className="flex-1 min-w-[80px] text-right">
+        <div className={`text-3xl sm:text-4xl font-bold tracking-tighter ${accent ? 'text-gcf-green' : 'text-gcf-black'}`}>{m}</div>
+      </div>
+      <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
+      <div className="relative -top-4">
+        <div
+          className={`w-20 sm:w-24 text-xl sm:text-2xl font-bold border rounded-[12px] text-center py-1.5 shadow-sm ${
+            accent ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black/60'
+          }`}
+        >
+          {e}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Component for displaying large numbers with toggle (UI only)
 const BigNumberDisplay = ({
   value,
@@ -332,11 +378,9 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // ✅ guarda exatamente o “manual” para o PDF (mantissa + expoente variáveis)
+  // ✅ guarda exatamente o “manual” para o PDF (somente CONCENTRAÇÃO)
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
-  const [cropUfcParts, setCropUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
-  const [compUfcParts, setCompUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -344,7 +388,7 @@ export default function App() {
       const dose = new Decimal(data.Dose_ha_ml_ou_g || 0);
       const custo = new Decimal(data['Custo_R$_por_L_ou_kg'] || 0);
 
-      const ufcHa = conc.times(dose);
+      const ufcHa = conc.times(dose); // ✅ automático
       const custoHa = dose.times(custo).dividedBy(1000);
       const ufcMm2 = ufcHa.dividedBy(1e10);
 
@@ -380,31 +424,11 @@ export default function App() {
     }));
   };
 
-  const handleUfcChange = (value: string, isCompetitor = false) => {
-    const setter = isCompetitor ? setCompData : setCropData;
-    const currentData = isCompetitor ? compData : cropData;
-
-    const conc = new Decimal(currentData.Concentracao_por_ml_ou_g || 0);
-    if (conc.isZero()) return;
-
-    try {
-      const targetUfc = new Decimal(value || 0);
-      const newDose = targetUfc.dividedBy(conc);
-
-      setter((prev) => ({
-        ...prev,
-        Dose_ha_ml_ou_g: newDose.toString(),
-      }));
-    } catch (_) {}
-  };
-
   const clearAll = () => {
     setCropData(INITIAL_STATE_CROPFIELD);
     setCompData(INITIAL_STATE_CONCORRENTE);
     setCropConcParts({ mantissa: '', exponent: '' });
     setCompConcParts({ mantissa: '', exponent: '' });
-    setCropUfcParts({ mantissa: '', exponent: '' });
-    setCompUfcParts({ mantissa: '', exponent: '' });
   };
 
   const downloadReportPdf = () => {
@@ -433,14 +457,14 @@ export default function App() {
         const sci = d.toExponential(mantissaDigits);
         const [mRaw, eRaw = '0'] = sci.split('e');
         const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
-        const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
-        return `${m}x10^${e === '' ? '0' : e}`;
+        const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
+        return `${m}x10^${e}`;
       } catch {
         return '0x10^0';
       }
     };
 
-    // ✅ Usa exatamente o que foi digitado (mantissa/expoente variáveis) — "x10" FIXO
+    // ✅ usa exatamente o que foi digitado (apenas concentração)
     const partsToCaret = (parts: SciParts, fallback?: Decimal | null) => {
       const m = (parts.mantissa ?? '').trim();
       const e = (parts.exponent ?? '').trim();
@@ -466,7 +490,7 @@ export default function App() {
         })()
       );
 
-    // redução = (Cropfield - Concorrente) / Cropfield * 100  => mostrar 20% etc.
+    // redução = (Cropfield - Concorrente) / Cropfield * 100
     const pctReduc = (crop: Decimal, comp: Decimal) => {
       try {
         if (!crop || (crop as any).isNaN?.()) return null;
@@ -477,7 +501,7 @@ export default function App() {
       }
     };
 
-    // ✅ PDF: desenha expoente elevado SEM usar caracteres especiais (evita virar letras)
+    // ✅ PDF: desenha expoente elevado SEM caracteres unicode (evita virar letras)
     // Entradas aceitas: "mantissax10^expoente"
     const drawExponentInCell = (data: any) => {
       const raw = String(data.cell?.text?.[0] ?? '');
@@ -500,7 +524,6 @@ export default function App() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(baseFont);
 
-      // ✅ "x10" fixo:
       const baseText = `${mantissa}x10`;
       doc.text(baseText, x, yMid, { baseline: 'middle' } as any);
 
@@ -524,13 +547,9 @@ export default function App() {
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
 
-    // ✅ Concentração no PDF = exatamente preenchido (mantissa/expoente)
+    // ✅ Concentração no PDF = exatamente preenchido
     const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
-
-    // ✅ UFC/ha no PDF: se o usuário editou o alvo, usar parts; senão fallback do cálculo
-    const cropUfcPdf = partsToCaret(cropUfcParts, cropCalculated.UFC_ou_conidios_ha);
-    const compUfcPdf = partsToCaret(compUfcParts, compCalculated.UFC_ou_conidios_ha);
 
     autoTable(doc, {
       startY: 92,
@@ -548,6 +567,10 @@ export default function App() {
     });
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
+
+    // ✅ UFC/ha automático no PDF: sempre do cálculo (não editável)
+    const cropUfcPdf = toSciCaret(cropCalculated.UFC_ou_conidios_ha, 2);
+    const compUfcPdf = toSciCaret(compCalculated.UFC_ou_conidios_ha, 2);
 
     autoTable(doc, {
       startY: yAfterInputs,
@@ -572,8 +595,7 @@ export default function App() {
     const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    // ✅ UFC/ha (abs) também em formato com expoente elevado
-    const diffUfcAbsPdf = diffUfcAbs.abs().gte(new Decimal('1e6')) ? toSciCaret(diffUfcAbs, 1) : `${diffUfcAbs.toFixed(0)}x10^0`;
+    const diffUfcAbsPdf = toSciCaret(diffUfcAbs, 2);
 
     autoTable(doc, {
       startY: yAfterResults,
@@ -637,7 +659,7 @@ export default function App() {
               <div className="space-y-2">
                 <label className="label-gcf">Concentração (UFC / mL ou g)</label>
 
-                {/* ✅ NÃO normaliza o que foi digitado: "x10" fixo; mantissa/expoente variáveis */}
+                {/* ✅ NÃO normaliza o que foi digitado */}
                 <ScientificInput
                   value={data.Concentracao_por_ml_ou_g}
                   onChange={(val) =>
@@ -691,30 +713,16 @@ export default function App() {
             <div className="flex flex-col space-y-3">
               <div className="flex justify-between items-center px-1">
                 <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">UFC ou Conídios / ha</span>
-                <span className="text-[9px] font-bold bg-gcf-green/10 text-gcf-green px-2 py-0.5 rounded-full border border-gcf-green/20 uppercase tracking-widest">
-                  Alvo Editável
+                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">
+                  Automático
                 </span>
               </div>
 
-              {/* ✅ Mantém formato manual enquanto digita (não normaliza) */}
-              <ScientificInput
-                value={calculated.UFC_ou_conidios_ha.toString()}
-                onChange={(val) => handleUfcChange(val, isCompetitor)}
-                onPartsChange={(m, e) => {
-                  if (isCompetitor) setCompUfcParts({ mantissa: m, exponent: e });
-                  else setCropUfcParts({ mantissa: m, exponent: e });
-                }}
-                preserveUserDisplay
-                emitOnSync={false}
-                className={`w-full font-mono text-xl font-bold ${
-                  isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
-                }`}
-                placeholder="Calculado..."
-              />
+              {/* ✅ AUTOMÁTICO (somente leitura): Concentração × Dose */}
+              <ScientificReadOnly value={calculated.UFC_ou_conidios_ha} accent={isCropfield} />
 
               <div className="px-1 space-y-1">
                 <p className="text-[9px] text-gcf-black/40 font-bold uppercase tracking-widest">Fórmula: Concentração × Dose</p>
-                <p className="text-[9px] text-gcf-black/30 font-medium italic">* Alterar este valor recalcula a Dose automaticamente.</p>
               </div>
             </div>
 

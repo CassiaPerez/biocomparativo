@@ -21,6 +21,49 @@ import autoTable from 'jspdf-autotable';
 // Coloque o arquivo exatamente em: public/gcf_logo.png
 const gcfLogo = '/gcf_logo.png';
 
+// Superscript helper (expoente elevado) para notação científica: 10¹²
+const toSuperscript = (input: string | number) => {
+  const map: Record<string, string> = {
+    '0': '⁰',
+    '1': '¹',
+    '2': '²',
+    '3': '³',
+    '4': '⁴',
+    '5': '⁵',
+    '6': '⁶',
+    '7': '⁷',
+    '8': '⁸',
+    '9': '⁹',
+    '+': '⁺',
+    '-': '⁻',
+  };
+
+  return String(input)
+    .split('')
+    .map((ch) => map[ch] ?? ch)
+    .join('');
+};
+
+const fmtScientificSup = (d: Decimal, mantissaDigits = 1) => {
+  try {
+    if (!d || (d as any).isNaN?.()) return '0';
+    if (d.isZero()) return '0';
+
+    // ex: "-1.5e+12"
+    const sci = d.toExponential(mantissaDigits);
+    const [mRaw, eRaw = '0'] = sci.split('e');
+
+    const mantissa = mRaw
+      .replace(/\.0+$/, '')
+      .replace(/(\.[0-9]*?)0+$/, '$1');
+
+    const exp = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
+    return `${mantissa}×10${toSuperscript(exp)}`;
+  } catch {
+    return '0';
+  }
+};
+
 // Types
 interface BiologicoRecord {
   Produto: string;
@@ -271,31 +314,27 @@ const BigNumberDisplay = ({
   };
 
   return (
-    <div className="flex flex-col">
-      {(label || (isLarge && !isCurrency)) && (
-        <div className="flex justify-between items-center mb-2">
-          {label && <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">{label}</span>}
-          {isLarge && !isCurrency && (
-            <button
-              onClick={() => setShowScientific(!showScientific)}
-              className="flex items-center gap-1.5 px-2 py-1 rounded-[8px] bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black/60 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ml-auto"
-              title="Alternar formato"
-              type="button"
-            >
-              {showScientific ? <Hash size={10} /> : <Calculator size={10} />}
-              <span>{showScientific ? 'Normal' : 'Científica'}</span>
-            </button>
-          )}
-        </div>
+    <div className="relative">
+      {label && <div className="text-xs font-bold text-gcf-black/40 uppercase tracking-widest mb-2">{label}</div>}
+
+      <div className={`text-2xl sm:text-3xl font-bold font-mono tracking-tighter ${colorClass}`}>{formatValue()}</div>
+
+      {!isCurrency && isLarge && (
+        <button
+          onClick={() => setShowScientific((s) => !s)}
+          className="absolute -bottom-6 right-0 text-[10px] font-bold text-gcf-green hover:text-gcf-black transition-colors uppercase tracking-widest"
+          type="button"
+        >
+          {showScientific ? 'Ver padrão' : 'Ver científico'}
+        </button>
       )}
-      <div className={`font-mono ${!showScientific ? 'text-2xl md:text-3xl font-bold tracking-tighter' : ''} ${colorClass}`}>
-        {formatValue()}
-      </div>
     </div>
   );
 };
 
 export default function App() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
   const [cropData, setCropData] = useState<BiologicoRecord>(INITIAL_STATE_CROPFIELD);
   const [cropCalculated, setCropCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
@@ -344,24 +383,6 @@ export default function App() {
     }));
   };
 
-  const handleUfcChange = (value: string, isCompetitor = false) => {
-    const setter = isCompetitor ? setCompData : setCropData;
-    const currentData = isCompetitor ? compData : cropData;
-
-    const conc = new Decimal(currentData.Concentracao_por_ml_ou_g || 0);
-    if (conc.isZero()) return;
-
-    try {
-      const targetUfc = new Decimal(value || 0);
-      const newDose = targetUfc.dividedBy(conc);
-
-      setter((prev) => ({
-        ...prev,
-        Dose_ha_ml_ou_g: newDose.toString(),
-      }));
-    } catch (_) {}
-  };
-
   const clearAll = () => {
     setCropData(INITIAL_STATE_CROPFIELD);
     setCompData(INITIAL_STATE_CONCORRENTE);
@@ -376,29 +397,27 @@ export default function App() {
       timeStyle: 'short',
     }).format(now);
 
-    // Formatação para PDF (evita "1e+10" e usa "1x10^10")
-    const fmtScientific = (d: Decimal, mantissaDigits = 1) => {
+    const safeDec = (v: string) => {
       try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
-
-        const sci = d.toExponential(mantissaDigits);
-        const [mRaw, eRaw] = sci.split('e');
-        const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
-        const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '');
-        return `${m}x10^${e}`;
+        if (!v) return null;
+        const d = new Decimal(v);
+        if ((d as any).isNaN?.()) return null;
+        return d;
       } catch {
-        return '0';
+        return null;
       }
     };
+
+    // Formatação para PDF (notação científica com expoente elevado)
+    const fmtSci = (d: Decimal, mantissaDigits = 1) => fmtScientificSup(d, mantissaDigits);
 
     const fmtDec = (d: Decimal) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0';
         if (d.isZero()) return '0';
 
-        // Para números grandes, imprimir em notação científica (log) do jeito pedido
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientific(d, 1);
+        // Para números grandes, imprimir em notação científica (expoente elevado)
+        if (d.abs().gte(new Decimal('1e6'))) return fmtSci(d, 1);
 
         // Para números menores, manter legível
         if (d.abs().lt(1)) return d.toFixed(6);
@@ -414,25 +433,14 @@ export default function App() {
         if (!d || (d as any).isNaN?.()) return '0';
         if (d.isZero()) return '0';
 
-        if (d.abs().gte(new Decimal('1e6'))) return fmtScientific(d, 1);
-        // Em geral, esse delta é usado como "unidade/área" e deve aparecer como número simples
+        if (d.abs().gte(new Decimal('1e6'))) return fmtSci(d, 1);
+
+        // unidade/área → absoluto (sem %)
         return d.toFixed(0);
       } catch {
         return '0';
       }
     };
-
-    // Para diferenças pequenas (ex.: UFC/mm²), mostrar ABSOLUTO sem % e sem casas decimais
-    const fmtDeltaSmall = (d: Decimal) => {
-      try {
-        if (!d || (d as any).isNaN?.()) return '0';
-        if (d.isZero()) return '0';
-        return d.toFixed(0);
-      } catch {
-        return '0';
-      }
-    };
-
 
     const fmtMoney = (d: Decimal) =>
       new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
@@ -445,19 +453,7 @@ export default function App() {
         })()
       );
 
-    
-    const safeDec = (raw: string) => {
-      try {
-        if (!raw) return null;
-        const d = new Decimal(raw);
-        if ((d as any).isNaN?.()) return null;
-        return d;
-      } catch {
-        return null;
-      }
-    };
-
-doc.setFont('helvetica', 'bold');
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
     doc.text('Relatório — Comparativo de Biológicos', 40, 48);
 
@@ -474,7 +470,11 @@ doc.setFont('helvetica', 'bold');
       head: [['Campo', 'Cropfield', 'Concorrente']],
       body: [
         ['Produto', cropData.Produto || '-', compData.Produto || '-'],
-        ['Concentração (UFC/mL ou g)', (safeDec(cropData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(cropData.Concentracao_por_ml_ou_g)!) : '-'), (safeDec(compData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(compData.Concentracao_por_ml_ou_g)!) : '-')],
+        [
+          'Concentração (UFC/mL ou g)',
+          safeDec(cropData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(cropData.Concentracao_por_ml_ou_g)!) : '-',
+          safeDec(compData.Concentracao_por_ml_ou_g) ? fmtDec(safeDec(compData.Concentracao_por_ml_ou_g)!) : '-',
+        ],
         ['Dose (mL ou g/ha)', cropData.Dose_ha_ml_ou_g || '-', compData.Dose_ha_ml_ou_g || '-'],
         ['Custo (R$/L ou kg)', cropData['Custo_R$_por_L_ou_kg'] || '-', compData['Custo_R$_por_L_ou_kg'] || '-'],
       ],
@@ -515,21 +515,23 @@ doc.setFont('helvetica', 'bold');
       }
     };
 
-    const pctReducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
-    const pctReducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
-    const pctReducMm2 = pctReduc(cropCalculated.UFC_ou_conidios_mm2_superficie, compCalculated.UFC_ou_conidios_mm2_superficie);
+    const pctReducCusto = pctReduc(compCalculated['Custo_R$_por_ha'], cropCalculated['Custo_R$_por_ha']);
+    const pctReducUfc = pctReduc(compCalculated.UFC_ou_conidios_ha, cropCalculated.UFC_ou_conidios_ha);
+    const pctReducMm2 = pctReduc(compCalculated.UFC_ou_conidios_mm2_superficie, cropCalculated.UFC_ou_conidios_mm2_superficie);
 
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
+        ['Δ Custo/ha', fmtMoney(diffCusto)],
+        // ABSOLUTO (sem %), pois é unidade por área
+        ['Δ UFC/ha', fmtDeltaArea(diffUfc)],
+        // ABSOLUTO (sem %)
+        ['Δ UFC/mm²', diffMm2.toFixed(0)],
         // Percentual de redução (ex.: 20%)
-        ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],
-        ['Redução (%) Custo/ha', pctReducCusto ? `${pctReducCusto.abs().toFixed(0)}%` : '-'],
-        // Diferenças absolutas (unidade por área)
-        ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
-        ['Δ UFC/ha (abs)', fmtDeltaArea(diffUfc)],
-        ['Δ UFC/mm² (abs)', fmtDeltaSmall(diffMm2)],
+        ['Redução (%) Custo/ha', pctReducCusto ? `${pctReducCusto.toFixed(0)}%` : '-'],
+        ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.toFixed(0)}%` : '-'],
+        ['Redução (%) UFC/mm²', pctReducMm2 ? `${pctReducMm2.toFixed(0)}%` : '-'],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
@@ -597,79 +599,55 @@ doc.setFont('helvetica', 'bold');
                     name="Dose_ha_ml_ou_g"
                     value={data.Dose_ha_ml_ou_g}
                     onChange={(e) => handleInputChange(e, isCompetitor)}
-                    step="any"
-                    className="input-gcf font-mono"
+                    className="input-gcf"
+                    placeholder="Ex: 400"
                   />
                 </div>
 
                 <div className="space-y-2">
                   <label className="label-gcf">Custo (R$ / L ou kg)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
-                    <input
-                      type="number"
-                      name="Custo_R$_por_L_ou_kg"
-                      value={data['Custo_R$_por_L_ou_kg']}
-                      onChange={(e) => handleInputChange(e, isCompetitor)}
-                      step="any"
-                      className="input-gcf pl-10 font-mono"
-                    />
-                  </div>
+                  <input
+                    type="number"
+                    name="Custo_R$_por_L_ou_kg"
+                    value={data['Custo_R$_por_L_ou_kg']}
+                    onChange={(e) => handleInputChange(e, isCompetitor)}
+                    className="input-gcf"
+                    placeholder="Ex: 120"
+                  />
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="w-full h-px bg-gcf-black/5"></div>
-
-          <div className="space-y-8">
-            <div className="flex flex-col space-y-3">
-              <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">UFC ou Conídios / ha</span>
-                <span className="text-[9px] font-bold bg-gcf-green/10 text-gcf-green px-2 py-0.5 rounded-full border border-gcf-green/20 uppercase tracking-widest">
-                  Alvo Editável
-                </span>
-              </div>
-              <ScientificInput
-                value={calculated.UFC_ou_conidios_ha.toString()}
-                onChange={(val) => handleUfcChange(val, isCompetitor)}
-                className={`w-full font-mono text-xl font-bold ${
-                  isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
-                }`}
-                placeholder="Calculado..."
-              />
-              <div className="px-1 space-y-1">
-                <p className="text-[9px] text-gcf-black/40 font-bold uppercase tracking-widest">Fórmula: Concentração × Dose</p>
-                <p className="text-[9px] text-gcf-black/30 font-medium italic">* Alterar este valor recalcula a Dose automaticamente.</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">UFC / mm² (Superfície)</span>
-                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">
-                  Concentração
-                </span>
-              </div>
-              <div className="bg-gcf-black/5 p-6 rounded-[14px] border border-gcf-black/5">
-                <BigNumberDisplay value={calculated.UFC_ou_conidios_mm2_superficie} colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'} />
-                <p className="text-[9px] text-gcf-black/40 mt-3 font-bold uppercase tracking-widest">Fórmula: UFC/ha ÷ 10¹⁰</p>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">Investimento / ha</span>
-                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">
-                  Comercial
-                </span>
-              </div>
-              <div className={`p-6 rounded-[14px] shadow-lg ${isCropfield ? 'bg-gcf-green shadow-gcf-green/20' : 'bg-gcf-black shadow-gcf-black/20'}`}>
-                <div className="text-3xl font-bold font-mono text-gcf-offwhite tracking-tighter">
-                  <span className="text-gcf-offwhite/50 text-sm mr-2">R$</span>
-                  {calculated['Custo_R$_por_ha'].toFixed(2).replace('.', ',')}
+            <div className="mt-8">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <Calculator size={16} className={isCropfield ? 'text-gcf-offwhite' : 'text-gcf-black/40'} />
+                  <h4 className="text-sm font-bold text-gcf-black uppercase tracking-widest">Resultados</h4>
                 </div>
-                <p className="text-[9px] text-gcf-offwhite/50 mt-3 font-bold uppercase tracking-widest">Fórmula: (Dose × Custo) ÷ 1.000</p>
+
+                <button
+                  onClick={downloadReportPdf}
+                  className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+                  type="button"
+                >
+                  <Download size={14} />
+                  <span className="hidden sm:inline">Baixar PDF</span>
+                </button>
+              </div>
+
+              <div className="space-y-7">
+                <BigNumberDisplay value={calculated.UFC_ou_conidios_ha} label="UFC / ha" colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'} />
+                <BigNumberDisplay
+                  value={calculated.UFC_ou_conidios_mm2_superficie}
+                  label="UFC / mm² (superfície)"
+                  colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'}
+                />
+                <BigNumberDisplay
+                  value={calculated['Custo_R$_por_ha']}
+                  label="Custo / ha"
+                  isCurrency
+                  colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'}
+                />
               </div>
             </div>
           </div>
@@ -678,274 +656,275 @@ doc.setFont('helvetica', 'bold');
     );
   };
 
-  // ✅ inicia recolhida
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   return (
-    <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden relative">
-      {/* Backdrop (mobile) */}
-      {isSidebarOpen && (
-        <button
-          type="button"
-          aria-label="Fechar menu"
-          onClick={() => setIsSidebarOpen(false)}
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50
-        fixed lg:static inset-y-0 left-0
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        ${isSidebarOpen ? 'w-72 lg:w-64' : 'w-72 lg:w-20'}
-        `}
-      >
-        <div className="h-20 flex items-center px-6 border-b border-white/5">
-          <div className="flex items-center gap-3 overflow-hidden">
-            {isSidebarOpen ? (
-              <img src={gcfLogo} alt="GCF Logo" className="h-9 w-auto invert brightness-200" draggable={false} />
-            ) : (
-              <div className="bg-gcf-green p-2 rounded-[10px] text-gcf-offwhite shrink-0">
-                <Leaf size={20} />
-              </div>
-            )}
-          </div>
-        </div>
-
-        <nav className="flex-1 py-6 px-4 space-y-2">
-          {[{ icon: LayoutDashboard, label: 'Comparativo', active: true }].map((item, idx) => (
-            <button
-              key={idx}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-[12px] transition-all group ${
-                item.active
-                  ? 'bg-gcf-green text-gcf-offwhite shadow-lg shadow-gcf-green/20'
-                  : 'text-gcf-offwhite/60 hover:bg-white/5 hover:text-gcf-offwhite'
-              }`}
-              type="button"
-            >
-              <item.icon size={20} className={item.active ? 'text-gcf-offwhite' : 'text-gcf-offwhite/40 group-hover:text-gcf-offwhite'} />
-              {isSidebarOpen && <span className="font-bold text-sm">{item.label}</span>}
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-4 border-t border-white/5">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="w-full flex items-center justify-center p-3 rounded-[12px] bg-white/5 hover:bg-white/10 transition-all"
-            type="button"
-          >
-            {isSidebarOpen ? <Minus size={16} /> : <Plus size={16} />}
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8 z-40 h-auto md:h-20 py-3 md:py-0 gap-3 flex-wrap">
-          <div className="flex items-center gap-3 md:gap-6">
-            {/* Menu (mobile) */}
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden w-10 h-10 rounded-[12px] bg-gcf-black/5 hover:bg-gcf-black/10 flex items-center justify-center"
-              aria-label="Abrir menu"
-              title="Menu"
-            >
-              <Plus size={18} />
-            </button>
-
-            <img src={gcfLogo} alt="GCF Logo" className="h-8 hidden md:block w-auto" draggable={false} />
-            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="flex items-center gap-4">
-              <h2 className="font-bold text-gcf-black tracking-tight">Comparativo de Biológicos</h2>
-              <span className="px-2 py-1 bg-gcf-green/10 text-gcf-green text-[10px] font-bold rounded-full uppercase tracking-widest">v2.0</span>
+    <div className="min-h-screen bg-gcf-offwhite">
+      <div className="flex h-screen">
+        <aside
+          className={`bg-white border-r border-gcf-black/10 w-72 sm:w-80 p-6 flex flex-col transition-transform duration-300 ease-out ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          } fixed lg:static inset-y-0 left-0 z-50`}
+        >
+          <div className="flex items-center gap-3 mb-10">
+            <div className="w-10 h-10 rounded-[14px] bg-gcf-black flex items-center justify-center">
+              <LayoutDashboard size={20} className="text-gcf-offwhite" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-lg font-bold text-gcf-black tracking-tighter">BioSimulador</h2>
+              <p className="text-xs font-bold text-gcf-black/40 uppercase tracking-widest">Cropfield</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
-            <button
-              onClick={downloadReportPdf}
-              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
-              type="button"
-              title="Baixar relatório em PDF"
-            >
-              <Download size={14} />
-              <span className="hidden sm:inline">Baixar PDF</span>
-            </button>
-
-            <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
-              <Trash2 size={14} />
-              <span className="hidden sm:inline">Limpar Dados</span>
-            </button>
-
-            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
-                <AlertCircle size={20} />
+          <div className="flex-1 space-y-6">
+            <div className="p-5 bg-gcf-green/5 border border-gcf-green/10 rounded-[18px]">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-[14px] bg-gcf-green flex items-center justify-center">
+                  <Leaf size={20} className="text-gcf-offwhite" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gcf-black tracking-tight">Tecnologia Cropfield</h3>
+                  <p className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Comparativo técnico</p>
+                </div>
               </div>
-            </div>
-          </div>
-        </header>
-
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12">
-          <div className="max-w-7xl mx-auto">
-            <div className="mb-12 md:mb-16">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gcf-black tracking-tighter mb-4">
-                Análise de <span className="text-gcf-green">Eficiência</span>
-              </h1>
-              <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
-                Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
+              <p className="text-xs text-gcf-black/50 leading-relaxed font-medium">
+                Insira os dados do seu biológico e compare com referências de mercado através de cálculos automáticos de UFC, superfície e custo por hectare.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
-              <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gcf-offwhite p-4 rounded-full shadow-xl border border-gcf-black/5 text-gcf-black/20 font-black text-2xl tracking-tighter">
-                VS
-              </div>
+            <div className="space-y-3">
+              <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em]">Atalhos</div>
 
-              {renderProductColumn('Cropfield', cropData, cropCalculated, false)}
-              {renderProductColumn('Concorrente', compData, compCalculated, true)}
+              <button
+                onClick={clearAll}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-gcf-black/5 hover:bg-gcf-black/10 transition-colors rounded-[14px] text-left"
+                type="button"
+              >
+                <Trash2 size={18} className="text-gcf-black/40" />
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-gcf-black">Limpar Dados</div>
+                  <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Resetar tudo</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCropData((prev) => ({ ...prev, Produto: 'Cropfield' }));
+                  setCompData((prev) => ({ ...prev, Produto: 'Concorrente' }));
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-gcf-black/5 hover:bg-gcf-black/10 transition-colors rounded-[14px] text-left"
+                type="button"
+              >
+                <Plus size={18} className="text-gcf-black/40" />
+                <div className="flex-1">
+                  <div className="text-sm font-bold text-gcf-black">Preencher Nomes</div>
+                  <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Padrão</div>
+                </div>
+              </button>
             </div>
+          </div>
 
-            <div className="mt-16 md:mt-24">
-              <div className="flex items-center gap-4 md:gap-6 mb-10 md:mb-12">
-                <div className="h-px flex-1 bg-gcf-black/10"></div>
-                <div className="flex items-center gap-3 px-4 md:px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
-                  <ArrowRightLeft className="text-gcf-green" size={20} />
-                  <h3 className="text-base md:text-lg font-bold text-gcf-black uppercase tracking-tighter">Análise de Diferenças</h3>
-                </div>
-                <div className="h-px flex-1 bg-gcf-black/10"></div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
-                <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
-                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
-                  {(() => {
-                    const cropCusto = cropCalculated['Custo_R$_por_ha'];
-                    const compCusto = compCalculated['Custo_R$_por_ha'];
-
-                    if (cropCusto.isZero()) {
-                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>;
-                    }
-
-                    const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
-                    const isMoreExpensive = diffPercent.gt(0);
-                    const isEqual = diffPercent.isZero();
-
-                    return (
-                      <>
-                        <div className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 relative z-10 text-gcf-offwhite tracking-tighter">
-                          {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
-                        </div>
-                        <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-bold text-gcf-offwhite relative z-10 border border-white/10 uppercase tracking-widest">
-                          {isEqual ? (
-                            <span>Mesmo custo</span>
-                          ) : isMoreExpensive ? (
-                            <>
-                              <TrendingUp size={14} className="text-gcf-offwhite/60" />
-                              <span>Concorrente mais caro</span>
-                            </>
-                          ) : (
-                            <>
-                              <TrendingDown size={14} className="text-gcf-offwhite" />
-                              <span>Concorrente mais barato</span>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
-                  {(() => {
-                    const cropUfc = cropCalculated.UFC_ou_conidios_ha;
-                    const compUfc = compCalculated.UFC_ou_conidios_ha;
-
-                    if (cropUfc.isZero()) {
-                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
-                    }
-
-                    const reducPercent = cropUfc.minus(compUfc).dividedBy(cropUfc).times(100);
-                      const isEqual = reducPercent.isZero();
-                      const isConcorrenteInferior = reducPercent.gt(0);
-
-                    return (
-                      <>
-                        <div
-                          className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isConcorrenteInferior ? 'text-gcf-green' : 'text-gcf-black/60'
-                          }`}
-                        >
-                          {isEqual ? '0%' : `${reducPercent.abs().toFixed(0)}%`}
-                        </div>
-                        <div
-                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${
-                            isEqual
-                              ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10'
-                              : isConcorrenteInferior
-                                ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
-                                : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
-                          }`}
-                        >
-                          {isEqual ? (
-                            <span>Mesma concentração</span>
-                          ) : isConcorrenteInferior ? (
-                            <>
-                              <TrendingDown size={14} />
-                              <span>Concorrente inferior</span>
-                            </>
-                          ) : (
-                            <>
-                              <TrendingUp size={14} />
-                              <span>Concorrente superior</span>
-                            </>
-                          )}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-
-                <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
-                  {(() => {
-                    const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
-                    const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
-
-                    if (cropUfcMm2.isZero()) {
-                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
-                    }
-
-                    const diffAbs = compUfcMm2.minus(cropUfcMm2);
-                    const isEqual = diffAbs.isZero();
-                    const isConcorrenteSuperior = diffAbs.gt(0);
-
-                    return (
-                      <>
-                        <div
-                          className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
-                          }`}
-                        >
-                          {isEqual ? '0' : diffAbs.toFixed(0)}
-                        </div>
-                        <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
-                          {isEqual ? 'Sem diferença' : isConcorrenteSuperior ? 'Concorrente superior' : 'Concorrente inferior'}
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
+          <div className="pt-6 border-t border-gcf-black/10">
+            <div className="flex items-center gap-3">
+              <img src={gcfLogo} alt="GCF" className="w-10 h-10 rounded-[14px] object-contain bg-white border border-gcf-black/10 p-1" />
+              <div className="flex-1">
+                <div className="text-sm font-bold text-gcf-black">Grupo Cropfield</div>
+                <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">v1.0</div>
               </div>
             </div>
           </div>
-        </main>
+        </aside>
+
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="bg-white border-b border-gcf-black/10 px-4 sm:px-6 md:px-12 py-5 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="lg:hidden w-10 h-10 rounded-[14px] bg-gcf-black/5 hover:bg-gcf-black/10 transition-colors flex items-center justify-center"
+                type="button"
+              >
+                <Minus size={18} className="text-gcf-black/40" />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <img src={gcfLogo} alt="GCF" className="w-10 h-10 rounded-[14px] object-contain bg-white border border-gcf-black/10 p-1" />
+                <div>
+                  <div className="text-sm font-bold text-gcf-black tracking-tight">BioSimulador</div>
+                  <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Comparativo</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button onClick={clearAll} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button">
+                <Trash2 size={14} />
+                <span className="hidden sm:inline">Limpar Dados</span>
+              </button>
+
+              <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
+                  <AlertCircle size={20} />
+                </div>
+              </div>
+            </div>
+          </header>
+
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-12">
+            <div className="max-w-7xl mx-auto">
+              <div className="mb-12 md:mb-16">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gcf-black tracking-tighter mb-4">
+                  Análise de <span className="text-gcf-green">Eficiência</span>
+                </h1>
+                <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
+                  Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
+                <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 bg-gcf-offwhite p-4 rounded-full shadow-xl border border-gcf-black/5 text-gcf-black/20 font-black text-2xl tracking-tighter">
+                  VS
+                </div>
+
+                {renderProductColumn('Cropfield', cropData, cropCalculated, false)}
+                {renderProductColumn('Concorrente', compData, compCalculated, true)}
+              </div>
+
+              <div className="mt-16 md:mt-24">
+                <div className="flex items-center gap-4 md:gap-6 mb-10 md:mb-12">
+                  <div className="h-px flex-1 bg-gcf-black/10"></div>
+                  <div className="flex items-center gap-3 px-4 md:px-6 py-2 bg-white border border-gcf-black/10 rounded-[14px] shadow-sm">
+                    <ArrowRightLeft className="text-gcf-green" size={20} />
+                    <h3 className="text-base md:text-lg font-bold text-gcf-black uppercase tracking-tighter">Análise de Diferenças</h3>
+                  </div>
+                  <div className="h-px flex-1 bg-gcf-black/10"></div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                  <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
+                    <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
+                    {(() => {
+                      const cropCusto = cropCalculated['Custo_R$_por_ha'];
+                      const compCusto = compCalculated['Custo_R$_por_ha'];
+
+                      if (cropCusto.isZero()) {
+                        return <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>;
+                      }
+
+                      const diffPercent = compCusto.minus(cropCusto).dividedBy(cropCusto).times(100);
+                      const isMoreExpensive = diffPercent.gt(0);
+                      const isEqual = diffPercent.isZero();
+
+                      return (
+                        <>
+                          <div className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 relative z-10 text-gcf-offwhite tracking-tighter">
+                            {isEqual ? '0%' : `${isMoreExpensive ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                          </div>
+                          <div className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-[10px] font-bold text-gcf-offwhite relative z-10 border border-white/10 uppercase tracking-widest">
+                            {isEqual ? (
+                              <span>Mesmo custo</span>
+                            ) : isMoreExpensive ? (
+                              <>
+                                <TrendingUp size={14} className="text-gcf-offwhite/60" />
+                                <span>Concorrente mais caro</span>
+                              </>
+                            ) : (
+                              <>
+                                <TrendingDown size={14} className="text-gcf-offwhite" />
+                                <span>Concorrente mais barato</span>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                    <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
+                    {(() => {
+                      const cropUfc = cropCalculated.UFC_ou_conidios_ha;
+                      const compUfc = compCalculated.UFC_ou_conidios_ha;
+
+                      if (cropUfc.isZero()) {
+                        return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                      }
+
+                      const diffPercent = compUfc.minus(cropUfc).dividedBy(cropUfc).times(100);
+                      const isSuperior = diffPercent.gt(0);
+                      const isEqual = diffPercent.isZero();
+
+                      return (
+                        <>
+                          <div
+                            className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
+                              isEqual ? 'text-gcf-black' : isSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            }`}
+                          >
+                            {isEqual ? '0%' : `${isSuperior ? '+' : ''}${diffPercent.toFixed(0)}%`}
+                          </div>
+                          <div
+                            className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${
+                              isEqual
+                                ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10'
+                                : isSuperior
+                                  ? 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
+                                  : 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
+                            }`}
+                          >
+                            {isEqual ? (
+                              <span>Mesma concentração</span>
+                            ) : isSuperior ? (
+                              <>
+                                <TrendingUp size={14} />
+                                <span>Concorrente superior</span>
+                              </>
+                            ) : (
+                              <>
+                                <TrendingDown size={14} />
+                                <span>Concorrente inferior</span>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                    <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
+                    {(() => {
+                      const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
+                      const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
+
+                      if (cropUfcMm2.isZero()) {
+                        return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                      }
+
+                      const diffAbs = compUfcMm2.minus(cropUfcMm2);
+                      const isEqual = diffAbs.isZero();
+                      const isConcorrenteSuperior = diffAbs.gt(0);
+
+                      return (
+                        <>
+                          <div
+                            className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
+                              isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
+                            }`}
+                          >
+                            {isEqual ? '0' : diffAbs.toFixed(0)}
+                          </div>
+                          <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
+                            {isEqual ? 'Sem diferença' : isConcorrenteSuperior ? 'Concorrente superior' : 'Concorrente inferior'}
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     </div>
   );

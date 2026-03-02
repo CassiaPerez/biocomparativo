@@ -58,8 +58,9 @@ const INITIAL_CALCULATED: CalculatedValues = {
 };
 
 // Scientific Input Component (Split View)
-// ✅ preserveUserDisplay: não normaliza o display enquanto o usuário digita (mantém "10 × 10^9" e não vira "1 × 10^10").
-// ✅ emitOnSync: quando false, NÃO sobrescreve as "parts" manuais ao sincronizar com value (essencial para UFC/ha).
+// ✅ "×10" é fixo no UI
+// ✅ mantissa e expoente variam
+// ✅ preserveUserDisplay = NÃO normaliza (ex.: 10×10^9 NÃO vira 1×10^10)
 const ScientificInput = ({
   value,
   onChange,
@@ -84,7 +85,18 @@ const ScientificInput = ({
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
-    if (preserveUserDisplay && isDirty) return;
+    // ✅ Se preserveUserDisplay=true: não reescreve mantissa/expoente a partir do "value"
+    // (evita normalização do Decimal: 10e9 -> 1e10)
+    if (preserveUserDisplay) {
+      // mas se limpou o value e não está digitando, limpa o display
+      if (!value && !isDirty) {
+        setMantissa('');
+        setExponent('');
+        setStatus('default');
+        setMessage('');
+      }
+      return;
+    }
 
     if (!value) {
       setMantissa('');
@@ -133,7 +145,7 @@ const ScientificInput = ({
       if (isNaN(Number(m))) throw new Error();
       if (e !== '' && e !== '-' && isNaN(Number(e))) throw new Error();
 
-      const safeM = m;
+      const safeM = m.replace(',', '.');
       const safeE = e === '' || e === '-' ? '0' : e;
 
       const val = new Decimal(`${safeM}e${safeE}`);
@@ -150,7 +162,7 @@ const ScientificInput = ({
         setMessage('');
       }
 
-      // ✅ guarda exatamente como digitado (mantissa/expoente) pro PDF
+      // ✅ guarda exatamente as parts que o usuário digitou
       onPartsChange?.(m, e);
 
       onChange(val.toString());
@@ -175,9 +187,7 @@ const ScientificInput = ({
     validateAndNotify(mantissa, newE);
   };
 
-  const handleBlur = () => {
-    setIsDirty(false);
-  };
+  const handleBlur = () => setIsDirty(false);
 
   const getStatusClasses = () => {
     switch (status) {
@@ -211,6 +221,7 @@ const ScientificInput = ({
           />
         </div>
 
+        {/* ✅ fixo */}
         <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
 
         <div className="relative -top-4">
@@ -321,7 +332,7 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // ✅ guarda exatamente o “manual” para o PDF
+  // ✅ guarda exatamente o “manual” para o PDF (mantissa + expoente variáveis)
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [cropUfcParts, setCropUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
@@ -429,9 +440,7 @@ export default function App() {
       }
     };
 
-    // ✅ Usa exatamente o que foi digitado (mantissa/expoente variáveis)
-    // - "x10" é FIXO
-    // - mantissa/expoente variam conforme preenchimento manual
+    // ✅ Usa exatamente o que foi digitado (mantissa/expoente variáveis) — "x10" FIXO
     const partsToCaret = (parts: SciParts, fallback?: Decimal | null) => {
       const m = (parts.mantissa ?? '').trim();
       const e = (parts.exponent ?? '').trim();
@@ -457,7 +466,7 @@ export default function App() {
         })()
       );
 
-    // redução = (Cropfield - Concorrente) / Cropfield * 100
+    // redução = (Cropfield - Concorrente) / Cropfield * 100  => mostrar 20% etc.
     const pctReduc = (crop: Decimal, comp: Decimal) => {
       try {
         if (!crop || (crop as any).isNaN?.()) return null;
@@ -468,8 +477,8 @@ export default function App() {
       }
     };
 
-    // ✅ PDF: desenha expoente elevado SEM usar "¹²³" (evita virar letras)
-    // Entradas aceitas: "mantissax10^expoente" (x10 fixo; expoente elevado).
+    // ✅ PDF: desenha expoente elevado SEM usar caracteres especiais (evita virar letras)
+    // Entradas aceitas: "mantissax10^expoente"
     const drawExponentInCell = (data: any) => {
       const raw = String(data.cell?.text?.[0] ?? '');
       const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)$/);
@@ -491,7 +500,7 @@ export default function App() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(baseFont);
 
-      // ✅ x10 FIXO aqui:
+      // ✅ "x10" fixo:
       const baseText = `${mantissa}x10`;
       doc.text(baseText, x, yMid, { baseline: 'middle' } as any);
 
@@ -515,11 +524,11 @@ export default function App() {
     doc.setLineWidth(0.5);
     doc.line(40, 78, 555, 78);
 
-    // ✅ Concentração no PDF deve refletir exatamente o preenchimento manual (mantissa/expoente)
+    // ✅ Concentração no PDF = exatamente preenchido (mantissa/expoente)
     const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
-    // ✅ UFC/ha no PDF: se foi editado manualmente, usa parts; senão fallback do cálculo
+    // ✅ UFC/ha no PDF: se o usuário editou o alvo, usar parts; senão fallback do cálculo
     const cropUfcPdf = partsToCaret(cropUfcParts, cropCalculated.UFC_ou_conidios_ha);
     const compUfcPdf = partsToCaret(compUfcParts, compCalculated.UFC_ou_conidios_ha);
 
@@ -563,7 +572,7 @@ export default function App() {
     const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    // ✅ "UFC/ha (abs)" também deve sair no formato com expoente elevado.
+    // ✅ UFC/ha (abs) também em formato com expoente elevado
     const diffUfcAbsPdf = diffUfcAbs.abs().gte(new Decimal('1e6')) ? toSciCaret(diffUfcAbs, 1) : `${diffUfcAbs.toFixed(0)}x10^0`;
 
     autoTable(doc, {
@@ -627,15 +636,21 @@ export default function App() {
             <div className="grid grid-cols-1 gap-6">
               <div className="space-y-2">
                 <label className="label-gcf">Concentração (UFC / mL ou g)</label>
+
+                {/* ✅ NÃO normaliza o que foi digitado: "x10" fixo; mantissa/expoente variáveis */}
                 <ScientificInput
                   value={data.Concentracao_por_ml_ou_g}
-                  onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
+                  onChange={(val) =>
+                    handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
+                  }
                   onPartsChange={(m, e) => {
                     if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
                     else setCropConcParts({ mantissa: m, exponent: e });
                   }}
+                  preserveUserDisplay
+                  emitOnSync={false}
                   className="w-full font-mono text-gcf-black"
-                  placeholder="Ex: 1e10"
+                  placeholder="Ex: 10 × 10^9"
                 />
               </div>
 
@@ -681,7 +696,7 @@ export default function App() {
                 </span>
               </div>
 
-              {/* ✅ Mantém o formato manual (ex.: 10 × 10^9) enquanto digita */}
+              {/* ✅ Mantém formato manual enquanto digita (não normaliza) */}
               <ScientificInput
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
@@ -818,7 +833,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
-            {/* ✅ apenas 1 botão de download */}
+            {/* ✅ apenas um botão de download */}
             <button onClick={downloadReportPdf} className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest" type="button" title="Baixar relatório em PDF">
               <Download size={14} />
               <span className="hidden sm:inline">Baixar PDF</span>

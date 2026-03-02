@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus,
   ArrowRightLeft,
-  Trash2,
   Hash,
   Calculator,
   TrendingUp,
@@ -10,7 +9,6 @@ import {
   Minus,
   Leaf,
   LayoutDashboard,
-  AlertCircle,
   Download,
 } from 'lucide-react';
 import { Decimal } from 'decimal.js';
@@ -212,7 +210,7 @@ const ScientificInput = ({
             className={`w-full text-3xl sm:text-4xl font-bold text-right outline-none bg-transparent tracking-tighter ${
               status === 'error' ? 'text-gcf-black/60' : 'text-gcf-black'
             } placeholder-gcf-black/20`}
-            placeholder="0"
+            placeholder={placeholder ?? '0'}
             inputMode="decimal"
           />
         </div>
@@ -252,7 +250,7 @@ const ScientificInput = ({
   );
 };
 
-// ✅ UFC/ha deve ser automático: display somente leitura com notação científica
+// ✅ UFC/ha automático: somente leitura com notação científica (mantissa + expoente)
 const ScientificReadOnly = ({
   value,
   className,
@@ -280,12 +278,14 @@ const ScientificReadOnly = ({
 
   return (
     <div
-      className={`group flex items-center bg-white border rounded-[14px] px-4 py-4 transition-all shadow-sm border-[rgba(41,44,45,0.12)] ${
+      className={`group flex items-center border rounded-[14px] px-4 py-4 transition-all shadow-sm ${
         accent ? 'bg-gcf-green/5 border-gcf-green/20' : 'bg-gcf-black/5 border-gcf-black/10'
       } ${className ?? ''}`}
     >
       <div className="flex-1 min-w-[80px] text-right">
-        <div className={`text-3xl sm:text-4xl font-bold tracking-tighter ${accent ? 'text-gcf-green' : 'text-gcf-black'}`}>{m}</div>
+        <div className={`text-3xl sm:text-4xl font-bold tracking-tighter ${accent ? 'text-gcf-green' : 'text-gcf-black'}`}>
+          {m}
+        </div>
       </div>
       <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
       <div className="relative -top-4">
@@ -387,7 +387,8 @@ export default function App() {
       const dose = new Decimal(data.Dose_ha_ml_ou_g || 0);
       const custo = new Decimal(data['Custo_R$_por_L_ou_kg'] || 0);
 
-      const ufcHa = conc.times(dose); // ✅ automático
+      // ✅ UFC/ha automático = Concentração × Dose
+      const ufcHa = conc.times(dose);
       const custoHa = dose.times(custo).dividedBy(1000);
       const ufcMm2 = ufcHa.dividedBy(1e10);
 
@@ -447,34 +448,35 @@ export default function App() {
       }
     };
 
-    // Decimal -> "3.5 x 10^12"
-    const toSciCaret = (d: Decimal, mantissaDigits = 1) => {
+    // ✅ token interno estável (para desenhar como "2x10⁹" no PDF)
+    // Decimal -> "2x10^9"
+    const toSciToken = (d: Decimal, mantissaDigits = 1) => {
       try {
-        if (!d || (d as any).isNaN?.()) return '0 x 10^0';
-        if (d.isZero()) return '0 x 10^0';
+        if (!d || (d as any).isNaN?.()) return '0x10^0';
+        if (d.isZero()) return '0x10^0';
 
         const sci = d.toExponential(mantissaDigits);
         const [mRaw, eRaw = '0'] = sci.split('e');
         const m = mRaw.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1');
         const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
-        return `${m} x 10^${e}`;
+        return `${m}x10^${e}`;
       } catch {
-        return '0 x 10^0';
+        return '0x10^0';
       }
     };
 
-    // ✅ usa exatamente o que foi digitado (apenas concentração)
-    const partsToCaret = (parts: SciParts, fallback?: Decimal | null) => {
+    // ✅ concentração manual -> token interno
+    const partsToToken = (parts: SciParts, fallback?: Decimal | null) => {
       const m = (parts.mantissa ?? '').trim();
       const e = (parts.exponent ?? '').trim();
 
       if (m && m !== '-') {
         const mant = m.replace(',', '.');
         const exp = e === '' || e === '-' ? '0' : e.replace('+', '').trim();
-        return `${mant} x 10^${exp}`;
+        return `${mant}x10^${exp}`;
       }
 
-      if (fallback && !(fallback as any).isNaN?.() && !fallback.isZero()) return toSciCaret(fallback, 1);
+      if (fallback && !(fallback as any).isNaN?.() && !fallback.isZero()) return toSciToken(fallback, 1);
       return '-';
     };
 
@@ -500,27 +502,37 @@ export default function App() {
       }
     };
 
-    // ✅ PDF: desenha expoente elevado manualmente, com espaço " x 10" (sem unicode quebrando)
-    // Aceita "2 x 10^9" e "2x10^9"
-    const drawExponentInCell = (data: any) => {
+    // ✅ desenhar como "2x10⁹" (expoente elevado uma única vez)
+    type CellSci = { m: string; e: string };
+
+    const didParseSciCell = (data: any) => {
       const raw = String(data.cell?.text?.[0] ?? '').trim();
-      const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)\s*x\s*10\^([+-]?\d+)\s*$/i);
+
+      // aceita "2x10^9" (token interno)
+      const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)\s*$/i);
       if (!match) return;
 
-      const mantissa = match[1];
-      const exp = match[2];
+      const m = match[1];
+      const e = match[2];
 
-      // remove texto padrão
+      // ✅ impede o autoTable de desenhar o texto original
       data.cell.text = [''];
+      (data.cell as any)._gcfSci = { m, e } as CellSci;
+    };
 
-      // respeita cor do texto da célula
+    const didDrawSciCell = (data: any) => {
+      const sci: CellSci | undefined = (data.cell as any)?._gcfSci;
+      if (!sci) return;
+
+      const { m, e } = sci;
+
+      // respeita a cor do texto da célula
       const tc = data.cell.styles?.textColor;
       if (Array.isArray(tc)) doc.setTextColor(tc[0], tc[1], tc[2]);
       else doc.setTextColor(0, 0, 0);
 
       const paddingLeft = data.cell.padding('left');
 
-      // posição base
       const x = data.cell.x + paddingLeft;
       const y = data.cell.y + data.cell.height / 2;
 
@@ -530,16 +542,16 @@ export default function App() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(baseFont);
 
-      // "2 x 10"
-      const baseText = `${mantissa} x 10`;
+      // ✅ base SEM espaço: "2x10"
+      const baseText = `${m}x10`;
       doc.text(baseText, x, y, { baseline: 'middle' } as any);
+
       const baseW = doc.getTextWidth(baseText);
 
-      // expoente elevado
+      // ✅ expoente elevado: vira visualmente "⁹"
       doc.setFontSize(expFont);
-      doc.text(exp, x + baseW + 2.5, y - 6, { baseline: 'middle' } as any);
+      doc.text(e, x + baseW + 1.5, y - 6, { baseline: 'middle' } as any);
 
-      // restaura
       doc.setFontSize(baseFont);
       doc.setTextColor(0, 0, 0);
     };
@@ -557,8 +569,8 @@ export default function App() {
     doc.line(40, 78, 555, 78);
 
     // ✅ Concentração no PDF = exatamente preenchido (mantissa + expoente)
-    const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
-    const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
+    const cropConcPdf = partsToToken(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
+    const compConcPdf = partsToToken(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
     autoTable(doc, {
       startY: 92,
@@ -572,14 +584,15 @@ export default function App() {
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
       theme: 'grid',
-      didDrawCell: drawExponentInCell,
+      didParseCell: didParseSciCell,
+      didDrawCell: didDrawSciCell,
     });
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
 
     // ✅ UFC/ha automático no PDF: sempre do cálculo (Concentração × Dose)
-    const cropUfcPdf = toSciCaret(cropCalculated.UFC_ou_conidios_ha, 2);
-    const compUfcPdf = toSciCaret(compCalculated.UFC_ou_conidios_ha, 2);
+    const cropUfcPdf = toSciToken(cropCalculated.UFC_ou_conidios_ha, 2);
+    const compUfcPdf = toSciToken(compCalculated.UFC_ou_conidios_ha, 2);
 
     autoTable(doc, {
       startY: yAfterInputs,
@@ -592,7 +605,8 @@ export default function App() {
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
       theme: 'grid',
-      didDrawCell: drawExponentInCell,
+      didParseCell: didParseSciCell,
+      didDrawCell: didDrawSciCell,
     });
 
     const yAfterResults = (doc as any).lastAutoTable.finalY + 18;
@@ -604,7 +618,7 @@ export default function App() {
     const reducUfc = pctReduc(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctReduc(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    const diffUfcAbsPdf = toSciCaret(diffUfcAbs, 2);
+    const diffUfcAbsPdf = toSciToken(diffUfcAbs, 2);
 
     autoTable(doc, {
       startY: yAfterResults,
@@ -619,7 +633,8 @@ export default function App() {
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
       theme: 'grid',
-      didDrawCell: drawExponentInCell,
+      didParseCell: didParseSciCell,
+      didDrawCell: didDrawSciCell,
     });
 
     const safe = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
@@ -681,7 +696,7 @@ export default function App() {
                   preserveUserDisplay
                   emitOnSync={false}
                   className="w-full font-mono text-gcf-black"
-                  placeholder="Ex: 10 × 10^9"
+                  placeholder="Ex: 2"
                 />
               </div>
 
@@ -772,6 +787,11 @@ export default function App() {
                 </p>
               </div>
             </div>
+
+            {/* botão invisível para “reset” opcional (sem mexer no layout) */}
+            <button type="button" onClick={clearAll} className="hidden" aria-hidden="true" tabIndex={-1}>
+              reset
+            </button>
           </div>
         </div>
       </div>
@@ -870,8 +890,8 @@ export default function App() {
             </div>
           </div>
 
+          {/* ✅ apenas 1 botão no header (download) */}
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
-            {/* ✅ apenas um botão de download */}
             <button
               onClick={downloadReportPdf}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
@@ -881,22 +901,6 @@ export default function App() {
               <Download size={14} />
               <span className="hidden sm:inline">Baixar PDF</span>
             </button>
-
-            <button
-              onClick={clearAll}
-              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
-              type="button"
-            >
-              <Trash2 size={14} />
-              <span className="hidden sm:inline">Limpar Dados</span>
-            </button>
-
-            <div className="h-8 w-px bg-gcf-black/10 hidden md:block"></div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gcf-black/5 flex items-center justify-center text-gcf-black/40">
-                <AlertCircle size={20} />
-              </div>
-            </div>
           </div>
         </header>
 

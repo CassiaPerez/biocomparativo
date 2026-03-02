@@ -396,6 +396,26 @@ export default function App() {
       }
     };
 
+    // Mantém o "formato do input" quando o usuário digita mantissa 10 (ex.: 10 × 10^9),
+    // mas internamente o Decimal normaliza para 1 × 10^10. No PDF, a Cassia quer ver o valor
+    // no mesmo estilo do campo (mantissa pode ser 10).
+    const sciPartsLikeInput = (d: Decimal, mantissaDigits = 1) => {
+      const p = sciParts(d, mantissaDigits);
+      try {
+        // p.base é algo como "1x10" ou "-1x10"
+        const mStr = p.base.replace('x10', '');
+        const mAbs = new Decimal(mStr).abs();
+        const expN = parseInt(p.exp || '0', 10);
+
+        // Se ficou exatamente 1×10^N, mostramos 10×10^(N-1) para refletir input "10 × 10^(...)"
+        if (mAbs.equals(1) && expN !== 0) {
+          const sign = new Decimal(mStr).isNegative() ? '-' : '';
+          return { base: `${sign}10x10`, exp: String(expN - 1) };
+        }
+      } catch (_) {}
+      return p;
+    };
+
     // fallback legível quando NÃO vamos desenhar o expoente manualmente
     const fmtScientificInline = (d: Decimal, mantissaDigits = 1) => {
       const p = sciParts(d, mantissaDigits);
@@ -492,8 +512,8 @@ doc.setFont('helvetica', 'bold');
     doc.line(40, 78, 555, 78);
 
     // Preparar partes científicas que precisam de expoente elevado (tabela "Campo")
-    const concCrop = safeDec(cropData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null;
-    const concComp = safeDec(compData.Concentracao_por_ml_ou_g) ? sciParts(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null;
+    const concCrop = safeDec(cropData.Concentracao_por_ml_ou_g) ? sciPartsLikeInput(safeDec(cropData.Concentracao_por_ml_ou_g)!, 1) : null;
+    const concComp = safeDec(compData.Concentracao_por_ml_ou_g) ? sciPartsLikeInput(safeDec(compData.Concentracao_por_ml_ou_g)!, 1) : null;
 
     autoTable(doc, {
       startY: 92,
@@ -569,7 +589,7 @@ doc.setFont('helvetica', 'bold');
 
     autoTable(doc, {
       startY: yAfterResults,
-      head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],
+      head: [['Diferença (Concorrente − Cropfield)', 'Valor']],
       body: [
         // Percentual de redução (ex.: 20%)
         ['Redução (%) UFC/ha', pctReducUfc ? `${pctReducUfc.abs().toFixed(0)}%` : '-'],

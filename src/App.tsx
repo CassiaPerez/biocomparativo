@@ -35,6 +35,8 @@ interface CalculatedValues {
   'Custo_R$_por_ha': Decimal;
 }
 
+type SciParts = { mantissa: string; exponent: string };
+
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
   Concentracao_por_ml_ou_g: '',
@@ -55,19 +57,23 @@ const INITIAL_CALCULATED: CalculatedValues = {
   'Custo_R$_por_ha': new Decimal(0),
 };
 
-type SciParts = { mantissa: string; exponent: string };
-
 // Scientific Input Component (Split View)
+// ✅ Ajuste: quando preserveUserDisplay=true, o componente NÃO sobrescreve o que o usuário digitou durante edição.
+// ✅ Ajuste: emitOnSync controla se onPartsChange será chamado ao sincronizar pelo value (para UFC/ha não “perder” o manual no PDF).
 const ScientificInput = ({
   value,
   onChange,
   onPartsChange,
+  preserveUserDisplay = false,
+  emitOnSync = true,
   placeholder,
   className,
 }: {
   value: string;
   onChange: (val: string) => void;
   onPartsChange?: (mantissa: string, exponent: string) => void;
+  preserveUserDisplay?: boolean;
+  emitOnSync?: boolean;
   placeholder?: string;
   className?: string;
 }) => {
@@ -75,8 +81,11 @@ const ScientificInput = ({
   const [exponent, setExponent] = useState('');
   const [status, setStatus] = useState<'default' | 'error' | 'warning'>('default');
   const [message, setMessage] = useState<string>('');
+  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
+    if (preserveUserDisplay && isDirty) return;
+
     if (!value) {
       setMantissa('');
       setExponent('');
@@ -90,25 +99,19 @@ const ScientificInput = ({
       if (dec.isZero()) {
         setMantissa('0');
         setExponent('0');
+        if (emitOnSync) onPartsChange?.('0', '0');
         return;
       }
 
       const sciStr = dec.toExponential();
       const [m, e] = sciStr.split('e');
+      const exp = (e || '0').replace('+', '');
 
-      setMantissa((prev) => {
-        try {
-          if (prev && exponent && new Decimal(`${prev}e${exponent}`).equals(dec)) return prev;
-        } catch (_) {}
-        return m;
-      });
+      setMantissa(m);
+      setExponent(exp);
 
-      setExponent((prev) => {
-        try {
-          if (mantissa && prev && new Decimal(`${mantissa}e${prev}`).equals(dec)) return prev;
-        } catch (_) {}
-        return e.replace('+', '');
-      });
+      // ⚠️ Para UFC/ha (manual) não podemos sobrescrever as “parts” do PDF ao sincronizar.
+      if (emitOnSync) onPartsChange?.(m, exp);
 
       setStatus('default');
       setMessage('');
@@ -117,7 +120,7 @@ const ScientificInput = ({
       setMessage('Número inválido');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+  }, [value, preserveUserDisplay, isDirty, emitOnSync]);
 
   const validateAndNotify = (m: string, e: string) => {
     if (m === '' || m === '-') {
@@ -148,7 +151,9 @@ const ScientificInput = ({
         setMessage('');
       }
 
+      // ✅ Sempre salva “como digitado” para o PDF
       onPartsChange?.(m, e);
+
       onChange(val.toString());
     } catch (_) {
       setStatus('error');
@@ -157,16 +162,22 @@ const ScientificInput = ({
     }
   };
 
-  const handleMantissaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newM = e.target.value;
+  const handleMantissaChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    setIsDirty(true);
+    const newM = ev.target.value;
     setMantissa(newM);
     validateAndNotify(newM, exponent);
   };
 
-  const handleExponentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newE = e.target.value;
+  const handleExponentChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    setIsDirty(true);
+    const newE = ev.target.value;
     setExponent(newE);
     validateAndNotify(mantissa, newE);
+  };
+
+  const handleBlur = () => {
+    setIsDirty(false);
   };
 
   const getStatusClasses = () => {
@@ -192,6 +203,7 @@ const ScientificInput = ({
             type="text"
             value={mantissa}
             onChange={handleMantissaChange}
+            onBlur={handleBlur}
             className={`w-full text-3xl sm:text-4xl font-bold text-right outline-none bg-transparent tracking-tighter ${
               status === 'error' ? 'text-gcf-black/60' : 'text-gcf-black'
             } placeholder-gcf-black/20`}
@@ -207,6 +219,7 @@ const ScientificInput = ({
             type="text"
             value={exponent}
             onChange={handleExponentChange}
+            onBlur={handleBlur}
             className={`w-20 sm:w-24 text-xl sm:text-2xl font-bold outline-none border rounded-[12px] text-center py-1.5 transition-all shadow-sm ${
               status === 'error'
                 ? 'bg-gcf-black/5 border-gcf-black/20 text-gcf-black/60 focus:border-gcf-black/40'
@@ -233,7 +246,7 @@ const ScientificInput = ({
   );
 };
 
-// Component for displaying large numbers with toggle
+// Component for displaying large numbers with toggle (UI only)
 const BigNumberDisplay = ({
   value,
   label,
@@ -262,13 +275,12 @@ const BigNumberDisplay = ({
 
     if (showScientific) {
       const exponential = value.toExponential(2);
-      const [mantissa, exponent] = exponential.split('e');
+      const [m, e] = exponential.split('e');
       return (
         <span className="inline-flex items-baseline">
-          <span className="text-3xl font-bold tracking-tighter">{mantissa.replace('.', ',')}</span>
+          <span className="text-3xl font-bold tracking-tighter">{m.replace('.', ',')}</span>
           <span className="mx-2 text-xl text-gcf-black/20 font-serif italic">× 10</span>
-          {/* ⚠️ aqui é UI, não PDF — pode manter */}
-          <sup className="text-xl font-bold text-gcf-green -top-2 relative">{exponent.replace('+', '')}</sup>
+          <sup className="text-xl font-bold text-gcf-green -top-2 relative">{e.replace('+', '')}</sup>
         </span>
       );
     }
@@ -310,7 +322,7 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // ✅ guarda exatamente como foi digitado (mantissa/expoente) para o PDF
+  // ✅ Guarda exatamente o “manual” para o PDF:
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [cropUfcParts, setCropUfcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
@@ -420,17 +432,18 @@ export default function App() {
       }
     };
 
-    // Usa o que foi digitado (mantissa/expoente), sem normalizar
-    const partsToCaret = (parts: SciParts, fallbackDecimal?: Decimal | null) => {
+    // ✅ Usa exatamente o que foi digitado (mantissa/expoente variáveis)
+    const partsToCaret = (parts: SciParts, fallback?: Decimal | null) => {
       const m = (parts.mantissa ?? '').trim();
       const e = (parts.exponent ?? '').trim();
-      if (m && m !== '-' && (e !== '' && e !== '-')) {
+
+      if (m && m !== '-') {
         const mant = m.replace(',', '.');
-        const exp = e.replace('+', '').trim();
-        return `${mant}x10^${exp === '' ? '0' : exp}`;
+        const exp = e === '' || e === '-' ? '0' : e.replace('+', '').trim();
+        return `${mant}x10^${exp}`;
       }
-      // fallback: se não tiver "digitado", usa o decimal calculado
-      if (fallbackDecimal) return toSciCaret(fallbackDecimal, 1);
+
+      if (fallback && !(fallback as any).isNaN?.() && !fallback.isZero()) return toSciCaret(fallback, 1);
       return '-';
     };
 
@@ -445,7 +458,6 @@ export default function App() {
         })()
       );
 
-    // Percentual de redução (ex.: 20%):
     // redução = (Cropfield - Concorrente) / Cropfield * 100
     const pctReduc = (crop: Decimal, comp: Decimal) => {
       try {
@@ -457,17 +469,16 @@ export default function App() {
       }
     };
 
-    // ✅ desenha expoente elevado (SEM unicode sobrescrito — evita virar "p")
+    // ✅ desenha expoente elevado (SEM unicode sobrescrito — evita virar letras)
     const drawExponentInCell = (data: any) => {
       const raw = String(data.cell?.text?.[0] ?? '');
       const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)$/);
       if (!match) return;
 
-      const mantissa = match[1]; // mantém vírgula/ponto do texto
+      const mantissa = match[1];
       const exp = match[2];
 
-      // limpa o texto padrão (para não duplicar)
-      data.cell.text = [''];
+      data.cell.text = ['']; // limpa texto padrão
 
       const paddingLeft = data.cell.padding('left');
       const x = data.cell.x + paddingLeft;
@@ -506,7 +517,8 @@ export default function App() {
     const cropConcPdf = partsToCaret(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToCaret(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
-    // Se o UFC/ha foi editado manualmente, imprime como digitado; senão imprime do cálculo
+    // UFC/ha: se o usuário editou manualmente, parts existem e o PDF sai exatamente como digitado;
+    // se não editou, cai no fallback do cálculo.
     const cropUfcPdf = partsToCaret(cropUfcParts, cropCalculated.UFC_ou_conidios_ha);
     const compUfcPdf = partsToCaret(compUfcParts, compCalculated.UFC_ou_conidios_ha);
 
@@ -559,7 +571,7 @@ export default function App() {
         ['Redução (%) UFC/ha', reducUfc ? `${reducUfc.abs().toFixed(0)}%` : '-'],
         ['Redução (%) Custo/ha', reducCusto ? `${reducCusto.abs().toFixed(0)}%` : '-'],
         ['Δ Custo/ha (abs)', fmtMoney(diffCusto)],
-        // ✅ precisa elevado também
+        // ✅ precisa elevado também (didDrawCell faz isso porque é x10^12)
         ['UFC/ha (abs)', diffUfcAbsPdf],
         ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
       ],
@@ -616,7 +628,9 @@ export default function App() {
                 <label className="label-gcf">Concentração (UFC / mL ou g)</label>
                 <ScientificInput
                   value={data.Concentracao_por_ml_ou_g}
-                  onChange={(val) => handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)}
+                  onChange={(val) =>
+                    handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
+                  }
                   onPartsChange={(m, e) => {
                     if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
                     else setCropConcParts({ mantissa: m, exponent: e });
@@ -667,6 +681,8 @@ export default function App() {
                   Alvo Editável
                 </span>
               </div>
+
+              {/* ✅ aqui é o ponto principal: preservar o “manual” sem normalizar para 1e10 */}
               <ScientificInput
                 value={calculated.UFC_ou_conidios_ha.toString()}
                 onChange={(val) => handleUfcChange(val, isCompetitor)}
@@ -674,11 +690,14 @@ export default function App() {
                   if (isCompetitor) setCompUfcParts({ mantissa: m, exponent: e });
                   else setCropUfcParts({ mantissa: m, exponent: e });
                 }}
+                preserveUserDisplay
+                emitOnSync={false}
                 className={`w-full font-mono text-xl font-bold ${
                   isCropfield ? 'bg-gcf-green/5 border-gcf-green/20 text-gcf-green' : 'bg-gcf-black/5 border-gcf-black/10 text-gcf-black'
                 }`}
                 placeholder="Calculado..."
               />
+
               <div className="px-1 space-y-1">
                 <p className="text-[9px] text-gcf-black/40 font-bold uppercase tracking-widest">Fórmula: Concentração × Dose</p>
                 <p className="text-[9px] text-gcf-black/30 font-medium italic">* Alterar este valor recalcula a Dose automaticamente.</p>
@@ -693,7 +712,10 @@ export default function App() {
                 </span>
               </div>
               <div className="bg-gcf-black/5 p-6 rounded-[14px] border border-gcf-black/5">
-                <BigNumberDisplay value={calculated.UFC_ou_conidios_mm2_superficie} colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'} />
+                <BigNumberDisplay
+                  value={calculated.UFC_ou_conidios_mm2_superficie}
+                  colorClass={isCropfield ? 'text-gcf-green' : 'text-gcf-black'}
+                />
                 <p className="text-[9px] text-gcf-black/40 mt-3 font-bold uppercase tracking-widest">Fórmula: UFC/ha ÷ 10¹⁰</p>
               </div>
             </div>
@@ -807,7 +829,7 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
-            {/* ✅ Apenas 1 botão de download */}
+            {/* ✅ apenas 1 botão de download */}
             <button
               onClick={downloadReportPdf}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
@@ -865,7 +887,9 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
                 <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
-                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">Diferença Custo / ha</span>
+                  <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
+                    Diferença Custo / ha
+                  </span>
                   {(() => {
                     const cropCusto = cropCalculated['Custo_R$_por_ha'];
                     const compCusto = compCalculated['Custo_R$_por_ha'];

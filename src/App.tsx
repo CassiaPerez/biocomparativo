@@ -672,9 +672,9 @@ export default function App() {
       body: [
         ['Redução (%) UFC/ha', fmtPctSigned(reducUfc)],
         ['Redução (%) Custo/ha', fmtPctSigned(reducCusto)],
-        ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
-        ['Custo/ha ÷ UFC/mm² (Cropfield)', fmtMoneyMicro(cropCostHaDivUfcMm2, 12)],
-        ['Custo/ha ÷ UFC/mm² (Concorrente)', fmtMoneyMicro(compCostHaDivUfcMm2, 12)],
+        ['UFC/mm² ', diffMm2Abs.toFixed(0)],
+        ['Custo/ha  UFC/mm² (Cropfield)', fmtMoneyMicro(cropCostHaDivUfcMm2, 12)],
+        ['Custo/ha  UFC/mm² (Concorrente)', fmtMoneyMicro(compCostHaDivUfcMm2, 12)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },

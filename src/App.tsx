@@ -449,7 +449,7 @@ export default function App() {
     };
 
     // ✅ token interno estável (para desenhar como "2x10⁹" no PDF)
-    // Decimal -> "2x10^9"
+    // Decimal -> "2x10^9" (expoente pode ser negativo)
     const toSciToken = (d: Decimal, mantissaDigits = 1) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0x10^0';
@@ -464,6 +464,8 @@ export default function App() {
         return '0x10^0';
       }
     };
+
+    const toSciTokenSigned = (d: Decimal, mantissaDigits = 2) => toSciToken(d, mantissaDigits);
 
     // ✅ concentração manual -> token interno
     const partsToToken = (parts: SciParts, fallback?: Decimal | null) => {
@@ -516,8 +518,6 @@ export default function App() {
 
     const didParseSciCell = (data: any) => {
       const raw = String(data.cell?.text?.[0] ?? '').trim();
-
-      // aceita "2x10^9" (token interno)
       const match = raw.match(/^([+-]?\d+(?:[.,]\d+)?)x10\^([+-]?\d+)\s*$/i);
       if (!match) return;
 
@@ -533,9 +533,6 @@ export default function App() {
       const sci: CellSci | undefined = (data.cell as any)?._gcfSci;
       if (!sci) return;
 
-      const { m, e } = sci;
-
-      // respeita a cor do texto da célula
       const tc = data.cell.styles?.textColor;
       if (Array.isArray(tc)) doc.setTextColor(tc[0], tc[1], tc[2]);
       else doc.setTextColor(0, 0, 0);
@@ -548,18 +545,19 @@ export default function App() {
       const baseFont = 10;
       const expFont = 7;
 
+      const mDisp = String(sci.m).replace('.', ',');
+      const eDisp = String(sci.e); // pode ser negativo
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(baseFont);
 
-      // ✅ base SEM espaço: "2x10"
-      const baseText = `${m}x10`;
+      const baseText = `${mDisp}x10`;
       doc.text(baseText, x, y, { baseline: 'middle' } as any);
 
       const baseW = doc.getTextWidth(baseText);
 
-      // ✅ expoente elevado: vira visualmente "⁹"
       doc.setFontSize(expFont);
-      doc.text(e, x + baseW + 1.5, y - 6, { baseline: 'middle' } as any);
+      doc.text(eDisp, x + baseW + 1.5, y - 6, { baseline: 'middle' } as any);
 
       doc.setFontSize(baseFont);
       doc.setTextColor(0, 0, 0);
@@ -603,6 +601,27 @@ export default function App() {
     const cropUfcPdf = toSciToken(cropCalculated.UFC_ou_conidios_ha, 2);
     const compUfcPdf = toSciToken(compCalculated.UFC_ou_conidios_ha, 2);
 
+    // ✅ custo/ha ÷ UFC/mm²
+    const cropCostHaDivUfcMm2 = (() => {
+      try {
+        const u = cropCalculated.UFC_ou_conidios_mm2_superficie;
+        if (!u || (u as any).isNaN?.() || u.isZero()) return null;
+        return cropCalculated['Custo_R$_por_ha'].div(u);
+      } catch {
+        return null;
+      }
+    })();
+
+    const compCostHaDivUfcMm2 = (() => {
+      try {
+        const u = compCalculated.UFC_ou_conidios_mm2_superficie;
+        if (!u || (u as any).isNaN?.() || u.isZero()) return null;
+        return compCalculated['Custo_R$_por_ha'].div(u);
+      } catch {
+        return null;
+      }
+    })();
+
     autoTable(doc, {
       startY: yAfterInputs,
       head: [['Métrica', 'Cropfield', 'Concorrente']],
@@ -614,6 +633,11 @@ export default function App() {
           compCalculated.UFC_ou_conidios_mm2_superficie.toFixed(2),
         ],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
+        [
+          'Custo/ha ÷ UFC/mm²',
+          cropCostHaDivUfcMm2 ? toSciTokenSigned(cropCostHaDivUfcMm2, 2) : '-',
+          compCostHaDivUfcMm2 ? toSciTokenSigned(compCostHaDivUfcMm2, 2) : '-',
+        ],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
@@ -626,7 +650,6 @@ export default function App() {
 
     const diffMm2Abs = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
 
-    // ✅ percentuais com sinal (negativo quando concorrente é inferior)
     const reducUfc = pctConcVsCrop(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctConcVsCrop(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
@@ -636,7 +659,6 @@ export default function App() {
       body: [
         ['Redução (%) UFC/ha', fmtPctSigned(reducUfc)],
         ['Redução (%) Custo/ha', fmtPctSigned(reducCusto)],
-        // ✅ NÃO incluir custo/ha(abs) e UFC/ha(abs) (removidos conforme pedido)
         ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
@@ -943,7 +965,9 @@ export default function App() {
                 <div className="h-px flex-1 bg-gcf-black/10"></div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+              {/* ✅ agora com 4 cards (inclui custo/ha ÷ UFC/mm²) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
+                {/* 1) Diferença Custo / ha */}
                 <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
                   <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
@@ -953,7 +977,7 @@ export default function App() {
                     const cropCusto = cropCalculated['Custo_R$_por_ha'];
                     const compCusto = compCalculated['Custo_R$_por_ha'];
 
-                    if (cropCusto.isZero()) {
+                    if (!cropCusto || cropCusto.isZero()) {
                       return (
                         <div className="text-2xl font-bold font-mono mb-2 text-gcf-offwhite/40 relative z-10">-</div>
                       );
@@ -988,15 +1012,14 @@ export default function App() {
                   })()}
                 </div>
 
+                {/* 2) Diferença UFC / ha */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">
-                    Diferença UFC / ha
-                  </span>
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
                   {(() => {
                     const cropUfc = cropCalculated.UFC_ou_conidios_ha;
                     const compUfc = compCalculated.UFC_ou_conidios_ha;
 
-                    if (cropUfc.isZero()) {
+                    if (!cropUfc || cropUfc.isZero()) {
                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
                     }
 
@@ -1008,11 +1031,7 @@ export default function App() {
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual
-                              ? 'text-gcf-black'
-                              : isConcorrenteInferior
-                                ? 'text-gcf-green'
-                                : 'text-gcf-black/60'
+                            isEqual ? 'text-gcf-black' : isConcorrenteInferior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
                           {isEqual ? '0%' : `${reducPercent.abs().toFixed(0)}%`}
@@ -1045,15 +1064,14 @@ export default function App() {
                   })()}
                 </div>
 
+                {/* 3) Diferença UFC / mm² (ABS) */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
-                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">
-                    Diferença UFC / mm²
-                  </span>
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
                   {(() => {
                     const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
                     const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
 
-                    if (cropUfcMm2.isZero()) {
+                    if (!cropUfcMm2 || cropUfcMm2.isZero()) {
                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
                     }
 
@@ -1065,17 +1083,85 @@ export default function App() {
                       <>
                         <div
                           className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
-                            isEqual
-                              ? 'text-gcf-black'
-                              : isConcorrenteSuperior
-                                ? 'text-gcf-green'
-                                : 'text-gcf-black/60'
+                            isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
                           {isEqual ? '0' : diffAbs.toFixed(0)}
                         </div>
                         <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
                           {isEqual ? 'Sem diferença' : isConcorrenteSuperior ? 'Concorrente superior' : 'Concorrente inferior'}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+
+                {/* 4) ✅ NOVO: Diferença Custo/ha ÷ UFC/mm² */}
+                <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
+                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">
+                    Diferença Custo/ha ÷ UFC/mm²
+                  </span>
+
+                  {(() => {
+                    const cropCustoHa = cropCalculated['Custo_R$_por_ha'];
+                    const compCustoHa = compCalculated['Custo_R$_por_ha'];
+
+                    const cropUfcMm2 = cropCalculated.UFC_ou_conidios_mm2_superficie;
+                    const compUfcMm2 = compCalculated.UFC_ou_conidios_mm2_superficie;
+
+                    if (!cropUfcMm2 || cropUfcMm2.isZero()) {
+                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                    }
+
+                    const cropRatio = cropCustoHa.div(cropUfcMm2); // R$ por UFC/mm²
+                    if (!cropRatio || cropRatio.isZero()) {
+                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                    }
+
+                    if (!compUfcMm2 || compUfcMm2.isZero()) {
+                      return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
+                    }
+
+                    const compRatio = compCustoHa.div(compUfcMm2);
+
+                    // % (Concorrente vs Cropfield): (comp - crop) / crop
+                    const diffPercent = compRatio.minus(cropRatio).dividedBy(cropRatio).times(100);
+                    const diff0 = diffPercent.toDecimalPlaces(0);
+                    const isEqual = diff0.isZero();
+                    const isConcorrenteMaior = diffPercent.gt(0);
+
+                    return (
+                      <>
+                        <div
+                          className={`text-4xl sm:text-5xl md:text-6xl font-bold font-mono mb-6 tracking-tighter ${
+                            isEqual ? 'text-gcf-black' : isConcorrenteMaior ? 'text-gcf-black/60' : 'text-gcf-green'
+                          }`}
+                        >
+                          {isEqual ? '0%' : `${isConcorrenteMaior ? '+' : ''}${diff0.toFixed(0)}%`}
+                        </div>
+
+                        <div
+                          className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${
+                            isEqual
+                              ? 'bg-gcf-black/5 text-gcf-black/40 border-gcf-black/10'
+                              : isConcorrenteMaior
+                                ? 'bg-gcf-black/5 text-gcf-black/60 border-gcf-black/10'
+                                : 'bg-gcf-green/10 text-gcf-green border-gcf-green/20'
+                          }`}
+                        >
+                          {isEqual ? (
+                            <span>Mesmo custo relativo</span>
+                          ) : isConcorrenteMaior ? (
+                            <>
+                              <TrendingUp size={14} />
+                              <span>Concorrente pior</span>
+                            </>
+                          ) : (
+                            <>
+                              <TrendingDown size={14} />
+                              <span>Concorrente melhor</span>
+                            </>
+                          )}
                         </div>
                       </>
                     );

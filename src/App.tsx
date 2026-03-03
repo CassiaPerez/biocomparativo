@@ -464,13 +464,13 @@ export default function App() {
       }
     };
 
-    // ✅ moeda “micro” (valor exato do sistema): sem arredondar agressivo, até 12 casas (ajuste se quiser mais)
+    // ✅ moeda “micro”: valor exato do sistema (até 12 casas)
     const fmtMoneyMicro = (d: Decimal | null, decimals = 12) => {
       try {
         if (!d) return '-';
         if ((d as any).isNaN?.()) return '-';
 
-        const s = d.toFixed(decimals); // mantém “exato” até N casas
+        const s = d.toFixed(decimals);
         const cleaned = s.replace(/0+$/, '').replace(/\.$/, '');
         return `R$ ${cleaned.replace('.', ',')}`;
       } catch {
@@ -642,6 +642,7 @@ export default function App() {
       }
     };
 
+    // ✅ TABELA DE MÉTRICAS: removido "Custo/ha ÷ UFC/mm²" (como você pediu)
     autoTable(doc, {
       startY: yAfterInputs,
       head: [['Métrica', 'Cropfield', 'Concorrente']],
@@ -649,8 +650,6 @@ export default function App() {
         ['UFC/ha', cropUfcPdf, compUfcPdf],
         ['UFC/mm² (superfície)', fmtUfcMm2Pdf(cropCalculated.UFC_ou_conidios_mm2_superficie), fmtUfcMm2Pdf(compCalculated.UFC_ou_conidios_mm2_superficie)],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
-        // ✅ AQUI: valor EXATO (sem %). Mantém “R$ 0,0000...”
-        ['Custo/ha ÷ UFC/mm²', fmtMoneyMicro(cropCostHaDivUfcMm2, 12), fmtMoneyMicro(compCostHaDivUfcMm2, 12)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [0, 178, 98], textColor: [252, 250, 240] },
@@ -666,16 +665,7 @@ export default function App() {
     const reducUfc = pctConcVsCrop(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctConcVsCrop(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    // ✅ análise do custo por UFC/mm² (valor + delta)
-    const deltaCostPerUfcMm2 = (() => {
-      try {
-        if (!cropCostHaDivUfcMm2 || !compCostHaDivUfcMm2) return null;
-        return compCostHaDivUfcMm2.minus(cropCostHaDivUfcMm2);
-      } catch {
-        return null;
-      }
-    })();
-
+    // ✅ ANÁLISE: mantém os VALORES exatos do custo por UFC/mm² no PDF, mas remove "abs" (delta) como você pediu
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],
@@ -683,10 +673,8 @@ export default function App() {
         ['Redução (%) UFC/ha', fmtPctSigned(reducUfc)],
         ['Redução (%) Custo/ha', fmtPctSigned(reducCusto)],
         ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
-        // ✅ novo: custo por UFC/mm² com valor exato (sem %)
         ['Custo/ha ÷ UFC/mm² (Cropfield)', fmtMoneyMicro(cropCostHaDivUfcMm2, 12)],
         ['Custo/ha ÷ UFC/mm² (Concorrente)', fmtMoneyMicro(compCostHaDivUfcMm2, 12)],
-        ['Δ Custo/ha ÷ UFC/mm² (abs)', fmtMoneyMicro(deltaCostPerUfcMm2, 12)],
       ],
       styles: { fontSize: 10, cellPadding: 6 },
       headStyles: { fillColor: [41, 44, 45], textColor: [252, 250, 240] },
@@ -1100,7 +1088,7 @@ export default function App() {
                   })()}
                 </div>
 
-                {/* 4) ✅ Custo/ha ÷ UFC/mm² (VALOR do sistema + Δ abs) */}
+                {/* 4) ✅ Custo/ha ÷ UFC/mm² (apenas valores Cropfield/Concorrente — removido Δ (abs) na UI) */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Custo/ha ÷ UFC/mm²</span>
 
@@ -1117,8 +1105,6 @@ export default function App() {
 
                     const cropRatio = cropCustoHa.div(cropUfcMm2);
                     const compRatio = compCustoHa.div(compUfcMm2);
-                    const delta = compRatio.minus(cropRatio);
-                    const isEqual = delta.toDecimalPlaces(12).isZero();
 
                     const fmtMoneyMicroUI = (d: Decimal) => {
                       try {
@@ -1141,15 +1127,6 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Concorrente</span>
                           <span className="text-sm font-bold font-mono text-gcf-black">{fmtMoneyMicroUI(compRatio)}</span>
-                        </div>
-
-                        <div className="h-px bg-gcf-black/10 my-2" />
-
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Δ (abs)</span>
-                          <span className={`text-sm font-bold font-mono ${isEqual ? 'text-gcf-black/40' : 'text-gcf-black/60'}`}>
-                            {isEqual ? 'R$ 0' : `${delta.gt(0) ? '+' : ''}${fmtMoneyMicroUI(delta)}`}
-                          </span>
                         </div>
                       </div>
                     );

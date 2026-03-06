@@ -16,7 +16,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabase, supabaseEnabled } from './lib/supabase';
 
-// ✅ Logo via PUBLIC (evita erro de import no Bolt/Vite)
+// ✅ Logo via PUBLIC
 // Coloque o arquivo exatamente em: public/gcf_logo.png
 const gcfLogo = '/gcf_logo.png';
 
@@ -60,14 +60,14 @@ interface ReportLocationData {
 type CompetitorConcentrationUnit = '' | 'ml' | 'l';
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
-  Produto: 'Cropfield',
+  Produto: '',
   Concentracao_por_ml_ou_g: '',
   Dose_ha_ml_ou_g: '',
   'Custo_R$_por_L_ou_kg': '',
 };
 
 const INITIAL_STATE_CONCORRENTE: BiologicoRecord = {
-  Produto: 'Concorrente',
+  Produto: '',
   Concentracao_por_ml_ou_g: '',
   Dose_ha_ml_ou_g: '',
   'Custo_R$_por_L_ou_kg': '',
@@ -100,10 +100,7 @@ const CROPFIELD_PRODUCT_OPTIONS: ProductOption[] = [
   { nome: 'GUARDIUM', concentracaoLabel: '4×10⁹', concentracaoValor: '4e9', mantissa: '4', exponent: '9' },
 ];
 
-// Scientific Input Component (Split View)
-// ✅ "×10" é fixo no UI
-// ✅ mantissa e expoente variam
-// ✅ preserveUserDisplay = NÃO normaliza (ex.: 10×10^9 NÃO vira 1×10^10)
+// Scientific input
 const ScientificInput = ({
   value,
   onChange,
@@ -128,7 +125,6 @@ const ScientificInput = ({
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
-    // ✅ Se preserveUserDisplay=true: não reescreve mantissa/expoente a partir do "value"
     if (preserveUserDisplay) {
       if (!value && !isDirty) {
         setMantissa('');
@@ -167,7 +163,7 @@ const ScientificInput = ({
 
       setStatus('default');
       setMessage('');
-    } catch (_) {
+    } catch {
       setStatus('error');
       setMessage('Número inválido');
     }
@@ -205,7 +201,7 @@ const ScientificInput = ({
 
       onPartsChange?.(m, e);
       onChange(val.toString());
-    } catch (_) {
+    } catch {
       setStatus('error');
       setMessage('Número inválido');
       onPartsChange?.(m, e);
@@ -260,7 +256,6 @@ const ScientificInput = ({
           />
         </div>
 
-        {/* ✅ fixo */}
         <div className="mx-3 text-2xl text-gcf-black/30 font-serif italic select-none pb-1">× 10</div>
 
         <div className="relative -top-4">
@@ -295,7 +290,6 @@ const ScientificInput = ({
   );
 };
 
-// ✅ UFC/ha automático: somente leitura com notação científica (mantissa + expoente)
 const ScientificReadOnly = ({
   value,
   className,
@@ -346,7 +340,6 @@ const ScientificReadOnly = ({
   );
 };
 
-// Component for displaying large numbers with toggle (UI only)
 const BigNumberDisplay = ({
   value,
   label,
@@ -422,7 +415,6 @@ export default function App() {
   const [compData, setCompData] = useState<BiologicoRecord>(INITIAL_STATE_CONCORRENTE);
   const [compCalculated, setCompCalculated] = useState<CalculatedValues>(INITIAL_CALCULATED);
 
-  // ✅ guarda exatamente o “manual” para o PDF (somente CONCENTRAÇÃO)
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
@@ -434,6 +426,7 @@ export default function App() {
   });
   const [competitorConcentrationUnit, setCompetitorConcentrationUnit] = useState<CompetitorConcentrationUnit>('');
   const [isSavingReport, setIsSavingReport] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -441,7 +434,6 @@ export default function App() {
       const dose = new Decimal(data.Dose_ha_ml_ou_g || 0);
       const custo = new Decimal(data['Custo_R$_por_L_ou_kg'] || 0);
 
-      // ✅ UFC/ha automático = Concentração × Dose
       const ufcHa = conc.times(dose);
       const custoHa = dose.times(custo).dividedBy(1000);
       const ufcMm2 = ufcHa.dividedBy(1e10);
@@ -451,7 +443,7 @@ export default function App() {
         UFC_ou_conidios_mm2_superficie: ufcMm2,
         'Custo_R$_por_ha': custoHa,
       };
-    } catch (_) {
+    } catch {
       return INITIAL_CALCULATED;
     }
   };
@@ -555,7 +547,6 @@ export default function App() {
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
-
   const closeReportModal = () => setIsReportModalOpen(false);
 
   const handleReportFieldChange = (field: keyof ReportContactData, value: string) => {
@@ -592,9 +583,7 @@ export default function App() {
       },
     ]);
 
-    if (error) {
-      throw error;
-    }
+    if (error) throw error;
   };
 
   const captureReportLocation = async (): Promise<ReportLocationData | null> => {
@@ -658,9 +647,10 @@ export default function App() {
     const now = new Date();
     const dt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(now);
 
-    const hiddenLocationMetadata = reportLocation?.latitude != null && reportLocation?.longitude != null
-      ? `lat:${reportLocation.latitude};lng:${reportLocation.longitude};acc:${reportLocation.precisao ?? 'n/a'};capturadoEm:${reportLocation.capturadoEm}`
-      : 'localizacao_nao_disponivel';
+    const hiddenLocationMetadata =
+      reportLocation?.latitude != null && reportLocation?.longitude != null
+        ? `lat:${reportLocation.latitude};lng:${reportLocation.longitude};acc:${reportLocation.precisao ?? 'n/a'};capturadoEm:${reportLocation.capturadoEm}`
+        : 'localizacao_nao_disponivel';
 
     doc.setProperties({
       title: 'Relatório Cropfield',
@@ -681,7 +671,6 @@ export default function App() {
       }
     };
 
-    // Decimal -> "2x10^9" (expoente pode ser negativo)
     const toSciToken = (d: Decimal, mantissaDigits = 1) => {
       try {
         if (!d || (d as any).isNaN?.()) return '0x10^0';
@@ -722,7 +711,6 @@ export default function App() {
         })()
       );
 
-    // ✅ número "real" (decimal) em pt-BR (sem notação científica)
     const fmtNumberPt = (d: Decimal | null, decimals = 2) => {
       try {
         if (!d) return '-';
@@ -733,8 +721,6 @@ export default function App() {
       }
     };
 
-    // ✅ variação do concorrente vs cropfield: (concorrente - cropfield) / cropfield * 100
-    // → fica NEGATIVO quando concorrente é inferior
     const pctConcVsCrop = (crop: Decimal, comp: Decimal) => {
       try {
         if (!crop || (crop as any).isNaN?.()) return null;
@@ -753,7 +739,6 @@ export default function App() {
       return `${n > 0 ? '+' : ''}${v.toFixed(0)}%`;
     };
 
-    // ✅ desenhar como "2x10⁹" (expoente elevado uma única vez)
     type CellSci = { m: string; e: string };
 
     const didParseSciCell = (data: any) => {
@@ -777,7 +762,6 @@ export default function App() {
       else doc.setTextColor(0, 0, 0);
 
       const paddingLeft = data.cell.padding('left');
-
       const x = data.cell.x + paddingLeft;
       const y = data.cell.y + data.cell.height / 2;
 
@@ -802,7 +786,6 @@ export default function App() {
       doc.setTextColor(0, 0, 0);
     };
 
-    // ✅ custo por UFC/mm² (valor exato) = (Custo/ha) ÷ (UFC/mm²)
     const calcCostPerUfcMm2 = (custoHa: Decimal, ufcMm2: Decimal) => {
       try {
         if (!ufcMm2 || (ufcMm2 as any).isNaN?.() || ufcMm2.isZero()) return null;
@@ -887,7 +870,6 @@ export default function App() {
     doc.setLineWidth(0.5);
     doc.line(40, contactFinalY + 10, 555, contactFinalY + 10);
 
-    // ✅ Concentração no PDF = exatamente preenchido (mantissa + expoente)
     const cropConcPdf = partsToToken(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToToken(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
@@ -909,21 +891,17 @@ export default function App() {
 
     const yAfterInputs = (doc as any).lastAutoTable.finalY + 18;
 
-    // ✅ UFC/ha automático no PDF: sempre do cálculo (Concentração × Dose)
     const cropUfcPdf = toSciToken(cropCalculated.UFC_ou_conidios_ha, 2);
     const compUfcPdf = toSciToken(compCalculated.UFC_ou_conidios_ha, 2);
 
-    // ✅ custo por UFC/mm² (valor exato) para PDF (mas você pediu para REMOVER as linhas da tabela de métricas)
     const cropCostPerUfcMm2 = calcCostPerUfcMm2(cropCalculated['Custo_R$_por_ha'], cropCalculated.UFC_ou_conidios_mm2_superficie);
     const compCostPerUfcMm2 = calcCostPerUfcMm2(compCalculated['Custo_R$_por_ha'], compCalculated.UFC_ou_conidios_mm2_superficie);
 
-    // ✅ Tabela de métricas (sem as linhas que você pediu remover)
     autoTable(doc, {
       startY: yAfterInputs,
       head: [['Métrica', 'Cropfield', 'Concorrente']],
       body: [
         ['UFC/ha', cropUfcPdf, compUfcPdf],
-        // ✅ aqui sai o resultado REAL (decimal), não notação científica
         [
           'UFC/mm² (superfície)',
           fmtNumberPt(cropCalculated.UFC_ou_conidios_mm2_superficie, 2),
@@ -941,14 +919,9 @@ export default function App() {
     const yAfterResults = (doc as any).lastAutoTable.finalY + 18;
 
     const diffMm2Abs = compCalculated.UFC_ou_conidios_mm2_superficie.minus(cropCalculated.UFC_ou_conidios_mm2_superficie);
-
     const reducUfc = pctConcVsCrop(cropCalculated.UFC_ou_conidios_ha, compCalculated.UFC_ou_conidios_ha);
     const reducCusto = pctConcVsCrop(cropCalculated['Custo_R$_por_ha'], compCalculated['Custo_R$_por_ha']);
 
-    // ✅ Você pediu valor exato no PDF, mas também pediu remover as linhas:
-    // - "Custo/ha ÷ UFC/mm² ..."
-    // - "Custo/ha ÷ UFC/mm² (abs) ..."
-    // Então: colocamos o VALOR EXATO aqui, na seção de análise (sem "abs")
     autoTable(doc, {
       startY: yAfterResults,
       head: [['Análise Técnica/Comercial do Concorrente', 'Valor']],
@@ -970,7 +943,12 @@ export default function App() {
     doc.save(fileName || `relatorio-comparativo-${safe}.pdf`);
   };
 
-  const renderProductColumn = (title: string, data: BiologicoRecord, calculated: CalculatedValues, isCompetitor: boolean) => {
+  const renderProductColumn = (
+    title: string,
+    data: BiologicoRecord,
+    calculated: CalculatedValues,
+    isCompetitor: boolean
+  ) => {
     const isCropfield = !isCompetitor;
 
     return (
@@ -1048,16 +1026,15 @@ export default function App() {
                         onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
                         className="input-gcf"
                         aria-label="Unidade da concentração do concorrente"
-                        title="Selecione se a concentração foi informada em mL ou litro"
+                        title="Selecione se a concentração foi informada em mL ou L"
                       >
-                        <option value="">Selecione mL ou Litro</option>
+                        <option value="">Selecione mL ou L</option>
                         <option value="ml">mL</option>
-                        <option value="l">Litro</option>
+                        <option value="l">L</option>
                       </select>
                     </div>
 
                     <div>
-                      {/* ✅ NÃO normaliza o que foi digitado */}
                       <ScientificInput
                         value={data.Concentracao_por_ml_ou_g}
                         onChange={(val) =>
@@ -1076,7 +1053,7 @@ export default function App() {
 
                     <p className={`text-xs ${competitorUnitMissing ? 'text-red-600 font-semibold' : 'text-gcf-black/60'}`}>
                       {competitorUnitMissing
-                        ? 'Selecione mL ou Litro antes de calcular ou gerar o relatório.'
+                        ? 'Selecione mL ou L antes de calcular ou gerar o relatório.'
                         : competitorConcentrationUnit === 'l'
                           ? 'A concentração informada por litro é convertida automaticamente para mL na calculadora e no relatório.'
                           : 'A concentração informada já é tratada como valor por mL na calculadora e no relatório.'}
@@ -1127,7 +1104,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* ✅ AUTOMÁTICO (somente leitura): Concentração × Dose */}
               <ScientificReadOnly value={calculated.UFC_ou_conidios_ha} accent={isCropfield} />
 
               <div className="px-1 space-y-1">
@@ -1173,7 +1149,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* botão invisível para “reset” opcional */}
             <button type="button" onClick={clearAll} className="hidden" aria-hidden="true" tabIndex={-1}>
               reset
             </button>
@@ -1183,12 +1158,8 @@ export default function App() {
     );
   };
 
-  // ✅ inicia recolhida
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
   return (
     <div className="min-h-screen bg-gcf-offwhite font-sans text-gcf-black flex overflow-hidden relative">
-      {/* Backdrop (mobile) */}
       {isSidebarOpen && (
         <button
           type="button"
@@ -1198,7 +1169,6 @@ export default function App() {
         />
       )}
 
-      {/* Sidebar */}
       <aside
         className={`bg-gcf-black text-gcf-offwhite transition-all duration-300 flex flex-col z-50
         fixed lg:static inset-y-0 left-0
@@ -1249,12 +1219,9 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
         <header className="bg-white border-b border-[rgba(41,44,45,0.12)] flex items-center justify-between px-4 md:px-8 z-40 h-auto md:h-20 py-3 md:py-0 gap-3 flex-wrap">
           <div className="flex items-center gap-3 md:gap-6">
-            {/* Menu (mobile) */}
             <button
               type="button"
               onClick={() => setIsSidebarOpen(true)}
@@ -1275,13 +1242,12 @@ export default function App() {
             </div>
           </div>
 
-          {/* ✅ apenas 1 botão (download) */}
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
             <button
               onClick={openReportModal}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
-              title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
+              title={competitorUnitMissing ? 'Selecione mL ou L na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
               disabled={competitorUnitMissing}
             >
               <Download size={14} />
@@ -1299,7 +1265,6 @@ export default function App() {
               <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
                 Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
               </p>
-
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
@@ -1321,9 +1286,7 @@ export default function App() {
                 <div className="h-px flex-1 bg-gcf-black/10"></div>
               </div>
 
-              {/* ✅ 4 cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8">
-                {/* 1) Diferença Custo / ha */}
                 <div className="bg-gcf-green p-8 sm:p-10 rounded-[28px] shadow-2xl shadow-gcf-green/20 flex flex-col items-center text-center relative overflow-hidden group">
                   <div className="absolute top-0 right-0 -mt-8 -mr-8 w-32 h-32 bg-white/10 rounded-full blur-3xl transition-all group-hover:scale-150"></div>
                   <span className="text-[10px] font-bold text-gcf-offwhite/60 uppercase tracking-[0.2em] mb-4 relative z-10">
@@ -1366,7 +1329,6 @@ export default function App() {
                   })()}
                 </div>
 
-                {/* 2) Diferença UFC / ha */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / ha</span>
                   {(() => {
@@ -1418,7 +1380,6 @@ export default function App() {
                   })()}
                 </div>
 
-                {/* 3) Diferença UFC / mm² (ABS) */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Diferença UFC / mm²</span>
                   {(() => {
@@ -1450,7 +1411,6 @@ export default function App() {
                   })()}
                 </div>
 
-                {/* 4) ✅ Custo por UFC/mm² (VALOR exato do sistema + %) — sem "Δ (abs)" */}
                 <div className="bg-white p-8 sm:p-10 rounded-[28px] border border-gcf-black/10 shadow-xl shadow-gcf-black/5 flex flex-col items-center text-center group">
                   <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.2em] mb-4">Custo por UFC/mm²</span>
 
@@ -1465,18 +1425,16 @@ export default function App() {
                       return <div className="text-2xl font-bold font-mono mb-2 text-gcf-black/20">-</div>;
                     }
 
-                    // ✅ valor real: (Custo/ha) ÷ (UFC/mm²)
                     const cropRatio = cropCustoHa.div(cropUfcMm2);
                     const compRatio = compCustoHa.div(compUfcMm2);
 
-                    // ✅ % (comparativo) baseado no valor exato
                     const delta = compRatio.minus(cropRatio);
                     const pct = cropRatio.isZero() ? null : delta.div(cropRatio).times(100);
 
                     const isEqual = delta.toDecimalPlaces(12).isZero();
-                    const isConcorrentePior = delta.gt(0); // delta > 0 => concorrente mais caro por UFC/mm²
+                    const isConcorrentePior = delta.gt(0);
 
-                    const fmtMoneyMicro = (d: Decimal) => {
+                    const fmtMoneyMicroLocal = (d: Decimal) => {
                       try {
                         if (!d || (d as any).isNaN?.()) return '-';
                         const s = d.toFixed(12);
@@ -1497,20 +1455,18 @@ export default function App() {
 
                     return (
                       <>
-                        {/* ✅ VALORES exatos (Crop vs Concorrente) */}
                         <div className="w-full space-y-3 mb-6">
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Cropfield</span>
-                            <span className="text-sm font-bold font-mono text-gcf-green">{fmtMoneyMicro(cropRatio)}</span>
+                            <span className="text-sm font-bold font-mono text-gcf-green">{fmtMoneyMicroLocal(cropRatio)}</span>
                           </div>
 
                           <div className="flex items-center justify-between gap-3">
                             <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">Concorrente</span>
-                            <span className="text-sm font-bold font-mono text-gcf-black">{fmtMoneyMicro(compRatio)}</span>
+                            <span className="text-sm font-bold font-mono text-gcf-black">{fmtMoneyMicroLocal(compRatio)}</span>
                           </div>
                         </div>
 
-                        {/* ✅ % como complemento (com sinal) */}
                         <div
                           className={`flex items-center gap-2 px-4 py-2 rounded-full text-[10px] font-bold border uppercase tracking-widest ${
                             isEqual
@@ -1541,73 +1497,89 @@ export default function App() {
               </div>
             </div>
           </div>
-      {isReportModalOpen && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
-          <button type="button" className="absolute inset-0 bg-gcf-black/60 backdrop-blur-sm" onClick={closeReportModal} aria-label="Fechar modal" />
 
-          <div className="relative w-full max-w-lg bg-white rounded-[24px] shadow-2xl border border-gcf-black/10 p-6 sm:p-8">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="h-16 w-16 rounded-[18px] border border-gcf-black/10 bg-gcf-offwhite flex items-center justify-center overflow-hidden shrink-0">
-                <img src={gcfLogo} alt="Logo da empresa" className="max-h-10 w-auto" draggable={false} />
-              </div>
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gcf-green mb-1">Dados do relatório</p>
-                <h3 className="text-xl font-bold tracking-tight text-gcf-black">Preencha antes de baixar o PDF</h3>
-                <p className="text-sm text-gcf-black/50 mt-1">Essas informações serão exibidas no cabeçalho do relatório junto com a logo da empresa.</p>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <label className="label-gcf">Nome do cliente</label>
-                <input
-                  type="text"
-                  value={reportContactData.nomeCliente}
-                  onChange={(e) => handleReportFieldChange('nomeCliente', e.target.value)}
-                  className="input-gcf"
-                  placeholder="Ex: Fazenda Santa Helena"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="label-gcf">Nome do vendedor</label>
-                <input
-                  type="text"
-                  value={reportContactData.nomeVendedor}
-                  onChange={(e) => handleReportFieldChange('nomeVendedor', e.target.value)}
-                  className="input-gcf"
-                  placeholder="Ex: João da Silva"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="label-gcf">Telefone do vendedor</label>
-                <input
-                  type="tel"
-                  value={reportContactData.telefoneVendedor}
-                  onChange={(e) => handleReportFieldChange('telefoneVendedor', e.target.value)}
-                  className="input-gcf"
-                  placeholder="Ex: (43) 99999-9999"
-                />
-              </div>
-            </div>
-
-            <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
-              <button type="button" onClick={closeReportModal} className="btn-secondary !justify-center">Cancelar</button>
+          {isReportModalOpen && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
               <button
                 type="button"
-                onClick={handleDownloadWithMetadata}
-                className="btn-primary !justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={competitorUnitMissing || reportFieldsMissing || isSavingReport}
-                title={competitorUnitMissing ? 'Selecione mL ou L na concentração do concorrente para gerar o PDF' : reportFieldsMissing ? 'Preencha os dados do cliente e vendedor para gerar o PDF' : 'Gerar PDF'}
-              >
-                <Download size={16} />
-                <span>{isSavingReport ? 'Salvando...' : 'Gerar PDF'}</span>
-              </button>
+                className="absolute inset-0 bg-gcf-black/60 backdrop-blur-sm"
+                onClick={closeReportModal}
+                aria-label="Fechar modal"
+              />
+
+              <div className="relative w-full max-w-lg bg-white rounded-[24px] shadow-2xl border border-gcf-black/10 p-6 sm:p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="h-16 w-16 rounded-[18px] border border-gcf-black/10 bg-gcf-offwhite flex items-center justify-center overflow-hidden shrink-0">
+                    <img src={gcfLogo} alt="Logo da empresa" className="max-h-10 w-auto" draggable={false} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gcf-green mb-1">Dados do relatório</p>
+                    <h3 className="text-xl font-bold tracking-tight text-gcf-black">Preencha antes de baixar o PDF</h3>
+                    <p className="text-sm text-gcf-black/50 mt-1">
+                      Essas informações serão exibidas no cabeçalho do relatório junto com a logo da empresa.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="label-gcf">Nome do cliente</label>
+                    <input
+                      type="text"
+                      value={reportContactData.nomeCliente}
+                      onChange={(e) => handleReportFieldChange('nomeCliente', e.target.value)}
+                      className="input-gcf"
+                      placeholder="Ex: Fazenda Santa Helena"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="label-gcf">Nome do vendedor</label>
+                    <input
+                      type="text"
+                      value={reportContactData.nomeVendedor}
+                      onChange={(e) => handleReportFieldChange('nomeVendedor', e.target.value)}
+                      className="input-gcf"
+                      placeholder="Ex: João da Silva"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="label-gcf">Telefone do vendedor</label>
+                    <input
+                      type="tel"
+                      value={reportContactData.telefoneVendedor}
+                      onChange={(e) => handleReportFieldChange('telefoneVendedor', e.target.value)}
+                      className="input-gcf"
+                      placeholder="Ex: (43) 99999-9999"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+                  <button type="button" onClick={closeReportModal} className="btn-secondary !justify-center">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDownloadWithMetadata}
+                    className="btn-primary !justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={competitorUnitMissing || reportFieldsMissing || isSavingReport}
+                    title={
+                      competitorUnitMissing
+                        ? 'Selecione mL ou L na concentração do concorrente para gerar o PDF'
+                        : reportFieldsMissing
+                          ? 'Preencha os dados do cliente e vendedor para gerar o PDF'
+                          : 'Gerar PDF'
+                    }
+                  >
+                    <Download size={16} />
+                    <span>{isSavingReport ? 'Salvando...' : 'Gerar PDF'}</span>
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
         </main>
       </div>
     </div>

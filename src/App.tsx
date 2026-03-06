@@ -969,7 +969,7 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px] gap-4 items-start">
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px] gap-4 items-start">
                       {/* ✅ NÃO normaliza o que foi digitado */}
                       <ScientificInput
                         value={data.Concentracao_por_ml_ou_g}
@@ -986,23 +986,22 @@ export default function App() {
                         placeholder="Ex: 2"
                       />
 
-                      <div className="space-y-2">
-                        <label className="label-gcf">Base informada</label>
-                        <select
-                          value={competitorConcentrationUnit}
-                          onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
-                          className="input-gcf"
-                        >
-                          <option value="ml">mL</option>
-                          <option value="l">Litro</option>
-                        </select>
-                      </div>
+                      <select
+                        value={competitorConcentrationUnit}
+                        onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
+                        className="input-gcf"
+                        aria-label="Unidade da concentração do concorrente"
+                        title="Selecione se a concentração foi informada em mL ou litro"
+                      >
+                        <option value="ml">UFC / mL</option>
+                        <option value="l">UFC / Litro</option>
+                      </select>
                     </div>
 
                     <p className="text-xs text-gcf-black/60">
                       {competitorConcentrationUnit === 'l'
-                        ? 'O valor informado por litro é convertido automaticamente para mL no cálculo do relatório.'
-                        : 'O valor informado já será usado como concentração por mL no cálculo do relatório.'}
+                        ? 'A concentração informada por litro é convertida automaticamente para mL na calculadora e no relatório.'
+                        : 'A concentração informada já é tratada como valor por mL na calculadora e no relatório.'}
                     </p>
                   </>
                 )}

@@ -894,7 +894,7 @@ export default function App() {
                   <option value="">Selecione um produto</option>
                   {CROPFIELD_PRODUCT_OPTIONS.map((product) => (
                     <option key={product.nome} value={product.nome}>
-                      {product.nome} — {product.concentracaoLabel}
+                      {product.nome}
                     </option>
                   ))}
                 </select>

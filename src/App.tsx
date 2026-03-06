@@ -35,6 +35,12 @@ interface CalculatedValues {
 
 type SciParts = { mantissa: string; exponent: string };
 
+interface ReportContactData {
+  nomeCliente: string;
+  nomeVendedor: string;
+  telefoneVendedor: string;
+}
+
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
   Concentracao_por_ml_ou_g: '',
@@ -381,6 +387,13 @@ export default function App() {
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportContactData, setReportContactData] = useState<ReportContactData>({
+    nomeCliente: '',
+    nomeVendedor: '',
+    telefoneVendedor: '',
+  });
+
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
       const conc = new Decimal(data.Concentracao_por_ml_ou_g || 0);
@@ -431,7 +444,20 @@ export default function App() {
     setCompConcParts({ mantissa: '', exponent: '' });
   };
 
-  const downloadReportPdf = () => {
+  const openReportModal = () => setIsReportModalOpen(true);
+
+  const closeReportModal = () => setIsReportModalOpen(false);
+
+  const handleReportFieldChange = (field: keyof ReportContactData, value: string) => {
+    setReportContactData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleDownloadWithMetadata = async () => {
+    await downloadReportPdf(reportContactData);
+    closeReportModal();
+  };
+
+  const downloadReportPdf = async (reportData: ReportContactData) => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
     const now = new Date();
@@ -591,24 +617,75 @@ export default function App() {
       }
     };
 
+    const fmtPhone = (value: string) => {
+      const digits = value.replace(/\D/g, '');
+      if (digits.length === 11) return digits.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-$3');
+      if (digits.length === 10) return digits.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
+      return value;
+    };
+
+    const loadImageAsDataUrl = (src: string) =>
+      new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || img.width;
+            canvas.height = img.naturalHeight || img.height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Falha ao preparar logo'));
+              return;
+            }
+            ctx.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          } catch (error) {
+            reject(error);
+          }
+        };
+        img.onerror = () => reject(new Error('Falha ao carregar logo'));
+        img.src = src;
+      });
+
+    const logoUrl = await loadImageAsDataUrl(gcfLogo).catch(() => null);
+
+    if (logoUrl) {
+      doc.addImage(logoUrl, 'PNG', 40, 28, 120, 42, undefined, 'FAST');
+    }
+
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(18);
-    doc.text('Relatório — Comparativo de Biológicos', 40, 48);
+    doc.text('Relatório — Comparativo de Biológicos', 40, logoUrl ? 88 : 48);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    doc.text(`Gerado em: ${dt}`, 40, 66);
+    doc.text(`Gerado em: ${dt}`, 40, logoUrl ? 106 : 66);
+
+    autoTable(doc, {
+      startY: logoUrl ? 122 : 82,
+      theme: 'plain',
+      styles: { fontSize: 10, cellPadding: { top: 4, right: 0, bottom: 4, left: 0 }, textColor: [41, 44, 45] },
+      columnStyles: { 0: { cellWidth: 120, fontStyle: 'bold' }, 1: { cellWidth: 395 } },
+      body: [
+        ['Cliente', reportData.nomeCliente.trim() || '-'],
+        ['Vendedor', reportData.nomeVendedor.trim() || '-'],
+        ['Telefone do vendedor', fmtPhone(reportData.telefoneVendedor.trim()) || '-'],
+      ],
+    });
+
+    const contactFinalY = (doc as any).lastAutoTable?.finalY ?? (logoUrl ? 122 : 82);
 
     doc.setDrawColor(41, 44, 45);
     doc.setLineWidth(0.5);
-    doc.line(40, 78, 555, 78);
+    doc.line(40, contactFinalY + 10, 555, contactFinalY + 10);
 
     // ✅ Concentração no PDF = exatamente preenchido (mantissa + expoente)
     const cropConcPdf = partsToToken(cropConcParts, safeDec(cropData.Concentracao_por_ml_ou_g));
     const compConcPdf = partsToToken(compConcParts, safeDec(compData.Concentracao_por_ml_ou_g));
 
     autoTable(doc, {
-      startY: 92,
+      startY: contactFinalY + 24,
       head: [['Campo', 'Cropfield', 'Concorrente']],
       body: [
         ['Produto', cropData.Produto || '-', compData.Produto || '-'],
@@ -938,7 +1015,7 @@ export default function App() {
           {/* ✅ apenas 1 botão (download) */}
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
             <button
-              onClick={downloadReportPdf}
+              onClick={openReportModal}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
               type="button"
               title="Baixar relatório em PDF"
@@ -958,6 +1035,19 @@ export default function App() {
               <p className="text-base sm:text-lg text-gcf-black/40 max-w-2xl font-medium">
                 Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
               </p>
+
+              <div className="mt-8 bg-white border border-gcf-black/10 rounded-[20px] p-5 sm:p-6 shadow-sm max-w-3xl">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="h-16 w-16 rounded-[18px] border border-gcf-black/10 bg-gcf-offwhite flex items-center justify-center overflow-hidden shrink-0">
+                    <img src={gcfLogo} alt="Logo da empresa" className="max-h-10 w-auto" draggable={false} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gcf-green mb-1">Formulário personalizado</p>
+                    <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gcf-black">Relatório com identidade visual da empresa</h3>
+                    <p className="text-sm text-gcf-black/50 mt-1">A logo da empresa aparece na tela e também no PDF exportado, junto com os dados comerciais do cliente e do vendedor.</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">
@@ -1199,6 +1289,67 @@ export default function App() {
               </div>
             </div>
           </div>
+      {isReportModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <button type="button" className="absolute inset-0 bg-gcf-black/60 backdrop-blur-sm" onClick={closeReportModal} aria-label="Fechar modal" />
+
+          <div className="relative w-full max-w-lg bg-white rounded-[24px] shadow-2xl border border-gcf-black/10 p-6 sm:p-8">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="h-16 w-16 rounded-[18px] border border-gcf-black/10 bg-gcf-offwhite flex items-center justify-center overflow-hidden shrink-0">
+                <img src={gcfLogo} alt="Logo da empresa" className="max-h-10 w-auto" draggable={false} />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gcf-green mb-1">Dados do relatório</p>
+                <h3 className="text-xl font-bold tracking-tight text-gcf-black">Preencha antes de baixar o PDF</h3>
+                <p className="text-sm text-gcf-black/50 mt-1">Essas informações serão exibidas no cabeçalho do relatório junto com a logo da empresa.</p>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <label className="label-gcf">Nome do cliente</label>
+                <input
+                  type="text"
+                  value={reportContactData.nomeCliente}
+                  onChange={(e) => handleReportFieldChange('nomeCliente', e.target.value)}
+                  className="input-gcf"
+                  placeholder="Ex: Fazenda Santa Helena"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="label-gcf">Nome do vendedor</label>
+                <input
+                  type="text"
+                  value={reportContactData.nomeVendedor}
+                  onChange={(e) => handleReportFieldChange('nomeVendedor', e.target.value)}
+                  className="input-gcf"
+                  placeholder="Ex: João da Silva"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="label-gcf">Telefone do vendedor</label>
+                <input
+                  type="tel"
+                  value={reportContactData.telefoneVendedor}
+                  onChange={(e) => handleReportFieldChange('telefoneVendedor', e.target.value)}
+                  className="input-gcf"
+                  placeholder="Ex: (43) 99999-9999"
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <button type="button" onClick={closeReportModal} className="btn-secondary !justify-center">Cancelar</button>
+              <button type="button" onClick={handleDownloadWithMetadata} className="btn-primary !justify-center">
+                <Download size={16} />
+                <span>Gerar PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </main>
       </div>
     </div>

@@ -27,6 +27,14 @@ interface BiologicoRecord {
   'Custo_R$_por_L_ou_kg': string;
 }
 
+interface ProductOption {
+  nome: string;
+  concentracaoLabel: string;
+  concentracaoValor: string;
+  mantissa: string;
+  exponent: string;
+}
+
 interface CalculatedValues {
   UFC_ou_conidios_ha: Decimal;
   UFC_ou_conidios_mm2_superficie: Decimal;
@@ -39,6 +47,13 @@ interface ReportContactData {
   nomeCliente: string;
   nomeVendedor: string;
   telefoneVendedor: string;
+}
+
+interface ReportLocationData {
+  latitude: number | null;
+  longitude: number | null;
+  precisao: number | null;
+  capturadoEm: string;
 }
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
@@ -60,6 +75,27 @@ const INITIAL_CALCULATED: CalculatedValues = {
   UFC_ou_conidios_mm2_superficie: new Decimal(0),
   'Custo_R$_por_ha': new Decimal(0),
 };
+
+const CROPFIELD_PRODUCT_OPTIONS: ProductOption[] = [
+  { nome: 'TRICHOKING', concentracaoLabel: '1×10¹⁰', concentracaoValor: '1e10', mantissa: '1', exponent: '10' },
+  { nome: 'TRICHOBIO', concentracaoLabel: '5×10⁹', concentracaoValor: '5e9', mantissa: '5', exponent: '9' },
+  { nome: 'HARZ', concentracaoLabel: '5×10⁹', concentracaoValor: '5e9', mantissa: '5', exponent: '9' },
+  { nome: 'BEAUVEBIO', concentracaoLabel: '1×10⁹', concentracaoValor: '1e9', mantissa: '1', exponent: '9' },
+  { nome: 'BOVEN', concentracaoLabel: '1×10¹⁰', concentracaoValor: '1e10', mantissa: '1', exponent: '10' },
+  { nome: 'METHABIO', concentracaoLabel: '2,2×10¹⁰', concentracaoValor: '2.2e10', mantissa: '2,2', exponent: '10' },
+  { nome: 'BT CROP', concentracaoLabel: '1×10¹⁰', concentracaoValor: '1e10', mantissa: '1', exponent: '10' },
+  { nome: 'NEMATHA', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
+  { nome: 'TRIGUARD', concentracaoLabel: '4,5×10⁹', concentracaoValor: '4.5e9', mantissa: '4,5', exponent: '9' },
+  { nome: 'AMYLOBIO', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
+  { nome: 'PUMIGUARD', concentracaoLabel: '2×10⁹', concentracaoValor: '2e9', mantissa: '2', exponent: '9' },
+  { nome: 'CHOLLA', concentracaoLabel: '3×10⁸', concentracaoValor: '3e8', mantissa: '3', exponent: '8' },
+  { nome: 'CROPBIO PHOS', concentracaoLabel: '4×10⁸', concentracaoValor: '4e8', mantissa: '4', exponent: '8' },
+  { nome: 'CROPBIO SOJA', concentracaoLabel: '7,0×10¹⁰', concentracaoValor: '7.0e10', mantissa: '7,0', exponent: '10' },
+  { nome: 'CROPBIO AZOS', concentracaoLabel: '4×10⁸', concentracaoValor: '4e8', mantissa: '4', exponent: '8' },
+  { nome: 'CROPBIO FEIJÃO', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
+  { nome: 'CROPBIO TURFA', concentracaoLabel: '5×10⁹', concentracaoValor: '5e9', mantissa: '5', exponent: '9' },
+  { nome: 'GUARDIUM', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
+];
 
 // Scientific Input Component (Split View)
 // ✅ "×10" é fixo no UI
@@ -426,7 +462,7 @@ export default function App() {
   }, [compData.Concentracao_por_ml_ou_g, compData.Dose_ha_ml_ou_g, compData['Custo_R$_por_L_ou_kg']]);
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } },
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } },
     isCompetitor = false
   ) => {
     const { name, value } = e.target;
@@ -435,6 +471,27 @@ export default function App() {
       ...prev,
       [name]: value,
     }));
+  };
+
+  const handleCropfieldProductSelect = (productName: string) => {
+    const selectedProduct = CROPFIELD_PRODUCT_OPTIONS.find((item) => item.nome === productName);
+
+    if (!selectedProduct) {
+      setCropData((prev) => ({
+        ...prev,
+        Produto: '',
+        Concentracao_por_ml_ou_g: '',
+      }));
+      setCropConcParts({ mantissa: '', exponent: '' });
+      return;
+    }
+
+    setCropData((prev) => ({
+      ...prev,
+      Produto: selectedProduct.nome,
+      Concentracao_por_ml_ou_g: selectedProduct.concentracaoValor,
+    }));
+    setCropConcParts({ mantissa: selectedProduct.mantissa, exponent: selectedProduct.exponent });
   };
 
   const clearAll = () => {
@@ -452,16 +509,52 @@ export default function App() {
     setReportContactData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const captureReportLocation = async (): Promise<ReportLocationData | null> => {
+    if (typeof window === 'undefined' || !('geolocation' in navigator)) return null;
+
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        });
+      });
+
+      return {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        precisao: position.coords.accuracy,
+        capturadoEm: new Date().toISOString(),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const handleDownloadWithMetadata = async () => {
-    await downloadReportPdf(reportContactData);
+    const reportLocation = await captureReportLocation();
+    await downloadReportPdf(reportContactData, reportLocation);
     closeReportModal();
   };
 
-  const downloadReportPdf = async (reportData: ReportContactData) => {
+  const downloadReportPdf = async (reportData: ReportContactData, reportLocation?: ReportLocationData | null) => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
     const now = new Date();
     const dt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' }).format(now);
+
+    const hiddenLocationMetadata = reportLocation?.latitude != null && reportLocation?.longitude != null
+      ? `lat:${reportLocation.latitude};lng:${reportLocation.longitude};acc:${reportLocation.precisao ?? 'n/a'};capturadoEm:${reportLocation.capturadoEm}`
+      : 'localizacao_nao_disponivel';
+
+    doc.setProperties({
+      title: 'Relatório Cropfield',
+      subject: `Relatório técnico | ${hiddenLocationMetadata}`,
+      author: reportData.nomeVendedor || 'Sistema Cropfield',
+      creator: 'Sistema Cropfield',
+      keywords: `relatorio,cropfield,${hiddenLocationMetadata}`,
+    });
 
     const safeDec = (raw: string) => {
       try {
@@ -791,35 +884,66 @@ export default function App() {
           <div className="space-y-6">
             <div className="space-y-2">
               <label className="label-gcf">Identificação do Produto</label>
-              <input
-                type="text"
-                name="Produto"
-                value={data.Produto}
-                onChange={(e) => handleInputChange(e, isCompetitor)}
-                className="input-gcf"
-                placeholder="Ex: BioControl"
-              />
+              {isCropfield ? (
+                <select
+                  name="Produto"
+                  value={data.Produto}
+                  onChange={(e) => handleCropfieldProductSelect(e.target.value)}
+                  className="input-gcf"
+                >
+                  <option value="">Selecione um produto</option>
+                  {CROPFIELD_PRODUCT_OPTIONS.map((product) => (
+                    <option key={product.nome} value={product.nome}>
+                      {product.nome} — {product.concentracaoLabel}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  name="Produto"
+                  value={data.Produto}
+                  onChange={(e) => handleInputChange(e, isCompetitor)}
+                  className="input-gcf"
+                  placeholder="Ex: BioControl"
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-6">
               <div className="space-y-2">
                 <label className="label-gcf">Concentração (UFC / mL ou g)</label>
 
-                {/* ✅ NÃO normaliza o que foi digitado */}
-                <ScientificInput
-                  value={data.Concentracao_por_ml_ou_g}
-                  onChange={(val) =>
-                    handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
-                  }
-                  onPartsChange={(m, e) => {
-                    if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
-                    else setCropConcParts({ mantissa: m, exponent: e });
-                  }}
-                  preserveUserDisplay
-                  emitOnSync={false}
-                  className="w-full font-mono text-gcf-black"
-                  placeholder="Ex: 2"
-                />
+                {isCropfield ? (
+                  <div className="input-gcf min-h-[64px] flex items-center justify-between gap-3 bg-gcf-black/[0.02]">
+                    <span className={data.Produto ? 'font-semibold text-gcf-black' : 'text-gcf-black/35'}>
+                      {data.Produto
+                        ? CROPFIELD_PRODUCT_OPTIONS.find((product) => product.nome === data.Produto)?.concentracaoLabel ?? '-'
+                        : 'Selecione um produto para preencher a concentração'}
+                    </span>
+                    {data.Produto && (
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gcf-green">Automático</span>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    {/* ✅ NÃO normaliza o que foi digitado */}
+                    <ScientificInput
+                      value={data.Concentracao_por_ml_ou_g}
+                      onChange={(val) =>
+                        handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
+                      }
+                      onPartsChange={(m, e) => {
+                        if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
+                        else setCropConcParts({ mantissa: m, exponent: e });
+                      }}
+                      preserveUserDisplay
+                      emitOnSync={false}
+                      className="w-full font-mono text-gcf-black"
+                      placeholder="Ex: 2"
+                    />
+                  </>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

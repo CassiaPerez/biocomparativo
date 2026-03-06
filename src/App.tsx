@@ -56,6 +56,8 @@ interface ReportLocationData {
   capturadoEm: string;
 }
 
+type CompetitorConcentrationUnit = 'ml' | 'l';
+
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
   Concentracao_por_ml_ou_g: '',
@@ -429,6 +431,7 @@ export default function App() {
     nomeVendedor: '',
     telefoneVendedor: '',
   });
+  const [competitorConcentrationUnit, setCompetitorConcentrationUnit] = useState<CompetitorConcentrationUnit>('ml');
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -461,15 +464,53 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compData.Concentracao_por_ml_ou_g, compData.Dose_ha_ml_ou_g, compData['Custo_R$_por_L_ou_kg']]);
 
+  const sciPartsToValue = (parts: SciParts) => {
+    const mantissa = parts.mantissa.replace(',', '.').trim();
+    const exponent = parts.exponent.trim();
+
+    if (!mantissa || mantissa === '-' || !exponent || exponent === '-') return '';
+    return `${mantissa}e${exponent}`;
+  };
+
+  const convertCompetitorConcentrationToMl = (value: string, unit: CompetitorConcentrationUnit) => {
+    if (!value) return '';
+
+    try {
+      const decimalValue = new Decimal(value);
+      return unit === 'l' ? decimalValue.dividedBy(1000).toString() : decimalValue.toString();
+    } catch {
+      return value;
+    }
+  };
+
+  const handleCompetitorConcentrationUnitChange = (unit: CompetitorConcentrationUnit) => {
+    setCompetitorConcentrationUnit(unit);
+
+    const rawScientificValue = sciPartsToValue(compConcParts);
+
+    setCompData((prev) => ({
+      ...prev,
+      Concentracao_por_ml_ou_g: rawScientificValue
+        ? convertCompetitorConcentrationToMl(rawScientificValue, unit)
+        : prev.Concentracao_por_ml_ou_g,
+    }));
+  };
+
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement> | { target: { name: string; value: string } },
     isCompetitor = false
   ) => {
     const { name, value } = e.target;
     const setter = isCompetitor ? setCompData : setCropData;
+
+    const normalizedValue =
+      isCompetitor && name === 'Concentracao_por_ml_ou_g'
+        ? convertCompetitorConcentrationToMl(value, competitorConcentrationUnit)
+        : value;
+
     setter((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: normalizedValue,
     }));
   };
 
@@ -499,6 +540,7 @@ export default function App() {
     setCompData(INITIAL_STATE_CONCORRENTE);
     setCropConcParts({ mantissa: '', exponent: '' });
     setCompConcParts({ mantissa: '', exponent: '' });
+    setCompetitorConcentrationUnit('ml');
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
@@ -927,21 +969,41 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    {/* ✅ NÃO normaliza o que foi digitado */}
-                    <ScientificInput
-                      value={data.Concentracao_por_ml_ou_g}
-                      onChange={(val) =>
-                        handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
-                      }
-                      onPartsChange={(m, e) => {
-                        if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
-                        else setCropConcParts({ mantissa: m, exponent: e });
-                      }}
-                      preserveUserDisplay
-                      emitOnSync={false}
-                      className="w-full font-mono text-gcf-black"
-                      placeholder="Ex: 2"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_140px] gap-4 items-start">
+                      {/* ✅ NÃO normaliza o que foi digitado */}
+                      <ScientificInput
+                        value={data.Concentracao_por_ml_ou_g}
+                        onChange={(val) =>
+                          handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
+                        }
+                        onPartsChange={(m, e) => {
+                          if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
+                          else setCropConcParts({ mantissa: m, exponent: e });
+                        }}
+                        preserveUserDisplay
+                        emitOnSync={false}
+                        className="w-full font-mono text-gcf-black"
+                        placeholder="Ex: 2"
+                      />
+
+                      <div className="space-y-2">
+                        <label className="label-gcf">Base informada</label>
+                        <select
+                          value={competitorConcentrationUnit}
+                          onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
+                          className="input-gcf"
+                        >
+                          <option value="ml">mL</option>
+                          <option value="l">Litro</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-gcf-black/60">
+                      {competitorConcentrationUnit === 'l'
+                        ? 'O valor informado por litro é convertido automaticamente para mL no cálculo do relatório.'
+                        : 'O valor informado já será usado como concentração por mL no cálculo do relatório.'}
+                    </p>
                   </>
                 )}
               </div>

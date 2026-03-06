@@ -56,7 +56,7 @@ interface ReportLocationData {
   capturadoEm: string;
 }
 
-type CompetitorConcentrationUnit = 'ml' | 'l';
+type CompetitorConcentrationUnit = '' | 'ml' | 'l';
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
@@ -96,7 +96,7 @@ const CROPFIELD_PRODUCT_OPTIONS: ProductOption[] = [
   { nome: 'CROPBIO AZOS', concentracaoLabel: '4×10⁸', concentracaoValor: '4e8', mantissa: '4', exponent: '8' },
   { nome: 'CROPBIO FEIJÃO', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
   { nome: 'CROPBIO TURFA', concentracaoLabel: '5×10⁹', concentracaoValor: '5e9', mantissa: '5', exponent: '9' },
-  { nome: 'GUARDIUM', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
+  { nome: 'GUARDIUM', concentracaoLabel: '4×10⁹', concentracaoValor: '4e9', mantissa: '4', exponent: '9' },
 ];
 
 // Scientific Input Component (Split View)
@@ -431,7 +431,7 @@ export default function App() {
     nomeVendedor: '',
     telefoneVendedor: '',
   });
-  const [competitorConcentrationUnit, setCompetitorConcentrationUnit] = useState<CompetitorConcentrationUnit>('ml');
+  const [competitorConcentrationUnit, setCompetitorConcentrationUnit] = useState<CompetitorConcentrationUnit>('');
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -460,9 +460,14 @@ export default function App() {
   }, [cropData.Concentracao_por_ml_ou_g, cropData.Dose_ha_ml_ou_g, cropData['Custo_R$_por_L_ou_kg']]);
 
   useEffect(() => {
+    if (!competitorConcentrationUnit) {
+      setCompCalculated(INITIAL_CALCULATED);
+      return;
+    }
+
     setCompCalculated(calculate(compData));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compData.Concentracao_por_ml_ou_g, compData.Dose_ha_ml_ou_g, compData['Custo_R$_por_L_ou_kg']]);
+  }, [competitorConcentrationUnit, compData.Concentracao_por_ml_ou_g, compData.Dose_ha_ml_ou_g, compData['Custo_R$_por_L_ou_kg']]);
 
   const sciPartsToValue = (parts: SciParts) => {
     const mantissa = parts.mantissa.replace(',', '.').trim();
@@ -505,7 +510,9 @@ export default function App() {
 
     const normalizedValue =
       isCompetitor && name === 'Concentracao_por_ml_ou_g'
-        ? convertCompetitorConcentrationToMl(value, competitorConcentrationUnit)
+        ? competitorConcentrationUnit
+          ? convertCompetitorConcentrationToMl(value, competitorConcentrationUnit)
+          : value
         : value;
 
     setter((prev) => ({
@@ -513,6 +520,8 @@ export default function App() {
       [name]: normalizedValue,
     }));
   };
+
+  const competitorUnitMissing = !competitorConcentrationUnit;
 
   const handleCropfieldProductSelect = (productName: string) => {
     const selectedProduct = CROPFIELD_PRODUCT_OPTIONS.find((item) => item.nome === productName);
@@ -540,7 +549,7 @@ export default function App() {
     setCompData(INITIAL_STATE_CONCORRENTE);
     setCropConcParts({ mantissa: '', exponent: '' });
     setCompConcParts({ mantissa: '', exponent: '' });
-    setCompetitorConcentrationUnit('ml');
+    setCompetitorConcentrationUnit('');
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
@@ -969,7 +978,22 @@ export default function App() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_160px] gap-4 items-start">
+                    <div className="space-y-2">
+                      <label className="label-gcf">Unidade da concentração</label>
+                      <select
+                        value={competitorConcentrationUnit}
+                        onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
+                        className="input-gcf"
+                        aria-label="Unidade da concentração do concorrente"
+                        title="Selecione se a concentração foi informada em mL ou litro"
+                      >
+                        <option value="">Selecione mL ou Litro</option>
+                        <option value="ml">mL</option>
+                        <option value="l">Litro</option>
+                      </select>
+                    </div>
+
+                    <div>
                       {/* ✅ NÃO normaliza o que foi digitado */}
                       <ScientificInput
                         value={data.Concentracao_por_ml_ou_g}
@@ -985,23 +1009,14 @@ export default function App() {
                         className="w-full font-mono text-gcf-black"
                         placeholder="Ex: 2"
                       />
-
-                      <select
-                        value={competitorConcentrationUnit}
-                        onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
-                        className="input-gcf"
-                        aria-label="Unidade da concentração do concorrente"
-                        title="Selecione se a concentração foi informada em mL ou litro"
-                      >
-                        <option value="ml">UFC / mL</option>
-                        <option value="l">UFC / Litro</option>
-                      </select>
                     </div>
 
-                    <p className="text-xs text-gcf-black/60">
-                      {competitorConcentrationUnit === 'l'
-                        ? 'A concentração informada por litro é convertida automaticamente para mL na calculadora e no relatório.'
-                        : 'A concentração informada já é tratada como valor por mL na calculadora e no relatório.'}
+                    <p className={`text-xs ${competitorUnitMissing ? 'text-red-600 font-semibold' : 'text-gcf-black/60'}`}>
+                      {competitorUnitMissing
+                        ? 'Selecione mL ou Litro antes de calcular ou gerar o relatório.'
+                        : competitorConcentrationUnit === 'l'
+                          ? 'A concentração informada por litro é convertida automaticamente para mL na calculadora e no relatório.'
+                          : 'A concentração informada já é tratada como valor por mL na calculadora e no relatório.'}
                     </p>
                   </>
                 )}
@@ -1201,9 +1216,10 @@ export default function App() {
           <div className="flex items-center gap-2 md:gap-6 flex-wrap justify-end">
             <button
               onClick={openReportModal}
-              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest"
+              className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
-              title="Baixar relatório em PDF"
+              title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
+              disabled={competitorUnitMissing}
             >
               <Download size={14} />
               <span className="hidden sm:inline">Baixar PDF</span>
@@ -1515,7 +1531,13 @@ export default function App() {
 
             <div className="mt-8 flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
               <button type="button" onClick={closeReportModal} className="btn-secondary !justify-center">Cancelar</button>
-              <button type="button" onClick={handleDownloadWithMetadata} className="btn-primary !justify-center">
+              <button
+                type="button"
+                onClick={handleDownloadWithMetadata}
+                className="btn-primary !justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={competitorUnitMissing}
+                title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para gerar o PDF' : 'Gerar PDF'}
+              >
                 <Download size={16} />
                 <span>Gerar PDF</span>
               </button>

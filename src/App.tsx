@@ -1036,18 +1036,6 @@ export default function App() {
                 Compare a tecnologia Cropfield com referências de mercado através de dados técnicos e comerciais precisos.
               </p>
 
-              <div className="mt-8 bg-white border border-gcf-black/10 rounded-[20px] p-5 sm:p-6 shadow-sm max-w-3xl">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  <div className="h-16 w-16 rounded-[18px] border border-gcf-black/10 bg-gcf-offwhite flex items-center justify-center overflow-hidden shrink-0">
-                    <img src={gcfLogo} alt="Logo da empresa" className="max-h-10 w-auto" draggable={false} />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-gcf-green mb-1">Formulário personalizado</p>
-                    <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gcf-black">Relatório com identidade visual da empresa</h3>
-                    <p className="text-sm text-gcf-black/50 mt-1">A logo da empresa aparece na tela e também no PDF exportado, junto com os dados comerciais do cliente e do vendedor.</p>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start relative">

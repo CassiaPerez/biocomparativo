@@ -1218,7 +1218,7 @@ export default function App() {
               onClick={openReportModal}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
-              title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
+              title={competitorUnitMissing ? 'Selecione ML ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
               disabled={competitorUnitMissing}
             >
               <Download size={14} />

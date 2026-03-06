@@ -56,7 +56,7 @@ interface ReportLocationData {
   capturadoEm: string;
 }
 
-type CompetitorConcentrationUnit = '' | 'ml' | 'l';
+type CompetitorConcentrationUnit = '' | 'Ml' | 'l';
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
@@ -1536,7 +1536,7 @@ export default function App() {
                 onClick={handleDownloadWithMetadata}
                 className="btn-primary !justify-center disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={competitorUnitMissing}
-                title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para gerar o PDF' : 'Gerar PDF'}
+                title={competitorUnitMissing ? 'Selecione ML ou Litro na concentração do concorrente para gerar o PDF' : 'Gerar PDF'}
               >
                 <Download size={16} />
                 <span>Gerar PDF</span>

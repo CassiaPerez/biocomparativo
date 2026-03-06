@@ -14,6 +14,7 @@ import {
 import { Decimal } from 'decimal.js';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { supabase, supabaseEnabled } from './lib/supabase';
 
 // ✅ Logo via PUBLIC (evita erro de import no Bolt/Vite)
 // Coloque o arquivo exatamente em: public/gcf_logo.png
@@ -56,7 +57,7 @@ interface ReportLocationData {
   capturadoEm: string;
 }
 
-type CompetitorConcentrationUnit = '' | 'Ml' | 'l';
+type CompetitorConcentrationUnit = '' | 'ml' | 'l';
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: 'Cropfield',
@@ -432,6 +433,7 @@ export default function App() {
     telefoneVendedor: '',
   });
   const [competitorConcentrationUnit, setCompetitorConcentrationUnit] = useState<CompetitorConcentrationUnit>('');
+  const [isSavingReport, setIsSavingReport] = useState(false);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -560,6 +562,41 @@ export default function App() {
     setReportContactData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const reportFieldsMissing =
+    !reportContactData.nomeCliente.trim() ||
+    !reportContactData.nomeVendedor.trim() ||
+    !reportContactData.telefoneVendedor.trim();
+
+  const salvarRelatorioNoBanco = async (
+    reportData: ReportContactData,
+    reportLocation: ReportLocationData | null,
+    nomePdf: string
+  ) => {
+    if (!supabaseEnabled || !supabase) {
+      console.warn('Supabase não configurado. O PDF será gerado sem salvar no banco.');
+      return;
+    }
+
+    const { error } = await supabase.from('relatorio_downloads').insert([
+      {
+        nome_cliente: reportData.nomeCliente.trim(),
+        nome_vendedor: reportData.nomeVendedor.trim(),
+        telefone_vendedor: reportData.telefoneVendedor.trim(),
+        produto_cropfield: cropData.Produto?.trim() || null,
+        produto_concorrente: compData.Produto?.trim() || null,
+        latitude: reportLocation?.latitude ?? null,
+        longitude: reportLocation?.longitude ?? null,
+        precisao_localizacao: reportLocation?.precisao ?? null,
+        navegador: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        nome_pdf: nomePdf,
+      },
+    ]);
+
+    if (error) {
+      throw error;
+    }
+  };
+
   const captureReportLocation = async (): Promise<ReportLocationData | null> => {
     if (typeof window === 'undefined' || !('geolocation' in navigator)) return null;
 
@@ -584,12 +621,38 @@ export default function App() {
   };
 
   const handleDownloadWithMetadata = async () => {
-    const reportLocation = await captureReportLocation();
-    await downloadReportPdf(reportContactData, reportLocation);
-    closeReportModal();
+    if (reportFieldsMissing) {
+      alert('Preencha nome do cliente, nome do vendedor e telefone do vendedor antes de gerar o PDF.');
+      return;
+    }
+
+    if (competitorUnitMissing) {
+      alert('Selecione mL ou L na concentração do concorrente antes de gerar o relatório.');
+      return;
+    }
+
+    setIsSavingReport(true);
+
+    try {
+      const reportLocation = await captureReportLocation();
+      const fileName = `relatorio-comparativo-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.pdf`;
+
+      await salvarRelatorioNoBanco(reportContactData, reportLocation, fileName);
+      await downloadReportPdf(reportContactData, reportLocation, fileName);
+      closeReportModal();
+    } catch (error) {
+      console.error('Erro ao salvar relatório no banco:', error);
+      alert('Não foi possível salvar o relatório no banco de dados. Verifique a configuração do Supabase e a policy de INSERT.');
+    } finally {
+      setIsSavingReport(false);
+    }
   };
 
-  const downloadReportPdf = async (reportData: ReportContactData, reportLocation?: ReportLocationData | null) => {
+  const downloadReportPdf = async (
+    reportData: ReportContactData,
+    reportLocation?: ReportLocationData | null,
+    fileName?: string
+  ) => {
     const doc = new jsPDF({ unit: 'pt', format: 'a4' });
 
     const now = new Date();
@@ -904,7 +967,7 @@ export default function App() {
     });
 
     const safe = now.toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    doc.save(`relatorio-comparativo-${safe}.pdf`);
+    doc.save(fileName || `relatorio-comparativo-${safe}.pdf`);
   };
 
   const renderProductColumn = (title: string, data: BiologicoRecord, calculated: CalculatedValues, isCompetitor: boolean) => {
@@ -1218,7 +1281,7 @@ export default function App() {
               onClick={openReportModal}
               className="btn-secondary !py-2 !px-4 !text-xs uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
               type="button"
-              title={competitorUnitMissing ? 'Selecione ML ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
+              title={competitorUnitMissing ? 'Selecione mL ou Litro na concentração do concorrente para liberar o relatório' : 'Baixar relatório em PDF'}
               disabled={competitorUnitMissing}
             >
               <Download size={14} />
@@ -1535,11 +1598,11 @@ export default function App() {
                 type="button"
                 onClick={handleDownloadWithMetadata}
                 className="btn-primary !justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={competitorUnitMissing}
-                title={competitorUnitMissing ? 'Selecione ML ou Litro na concentração do concorrente para gerar o PDF' : 'Gerar PDF'}
+                disabled={competitorUnitMissing || reportFieldsMissing || isSavingReport}
+                title={competitorUnitMissing ? 'Selecione mL ou L na concentração do concorrente para gerar o PDF' : reportFieldsMissing ? 'Preencha os dados do cliente e vendedor para gerar o PDF' : 'Gerar PDF'}
               >
                 <Download size={16} />
-                <span>Gerar PDF</span>
+                <span>{isSavingReport ? 'Salvando...' : 'Gerar PDF'}</span>
               </button>
             </div>
           </div>

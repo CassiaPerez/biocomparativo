@@ -564,32 +564,34 @@ export default function Comparativo() {
 
   useEffect(() => {
     try {
-      let totalConcentracao = new Decimal(0);
-      let totalDose = new Decimal(0);
-      let totalCusto = new Decimal(0);
       let totalUFCHa = new Decimal(0);
 
+      if (!compData.Dose_ha_ml_ou_g) {
+        setCompData(prev => ({
+          ...prev,
+          Concentracao_por_ml_ou_g: '',
+          'Custo_R$_por_L_ou_kg': competitorCusto,
+        }));
+        setCompConcParts({ mantissa: '', exponent: '' });
+        return;
+      }
+
+      const dosePadrao = new Decimal(compData.Dose_ha_ml_ou_g);
+
       for (const micro of competitorMicrorganismos) {
-        if (micro.concentracaoTotal && micro.dose) {
+        if (micro.concentracaoTotal) {
           const conc = new Decimal(micro.concentracaoTotal);
-          const dose = new Decimal(micro.dose || 0);
-          const custo = new Decimal(micro.custo || 0);
-
-          const ufcHa = conc.times(dose);
+          const ufcHa = conc.times(dosePadrao);
           totalUFCHa = totalUFCHa.plus(ufcHa);
-
-          totalDose = totalDose.plus(dose);
-          totalCusto = totalCusto.plus(custo);
         }
       }
 
-      const concentracaoMedia = totalDose.isZero() ? new Decimal(0) : totalUFCHa.dividedBy(totalDose);
+      const concentracaoMedia = dosePadrao.isZero() ? new Decimal(0) : totalUFCHa.dividedBy(dosePadrao);
 
       setCompData(prev => ({
         ...prev,
         Concentracao_por_ml_ou_g: concentracaoMedia.toString(),
-        Dose_ha_ml_ou_g: totalDose.toString(),
-        'Custo_R$_por_L_ou_kg': totalCusto.toString(),
+        'Custo_R$_por_L_ou_kg': competitorCusto,
       }));
 
       if (!concentracaoMedia.isZero()) {
@@ -603,7 +605,7 @@ export default function Comparativo() {
     } catch (error) {
       console.error('Erro ao calcular totais:', error);
     }
-  }, [competitorMicrorganismos, competitorConcentrationUnit]);
+  }, [competitorMicrorganismos, competitorConcentrationUnit, compData.Dose_ha_ml_ou_g, competitorCusto]);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -1367,33 +1369,35 @@ export default function Comparativo() {
                   </>
                 )}
               </div>
+            </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="label-gcf">Dose (mL ou g / ha)</label>
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="label-gcf">Dose (mL ou g / ha)</label>
+                <input
+                  type="number"
+                  name="Dose_ha_ml_ou_g"
+                  value={data.Dose_ha_ml_ou_g}
+                  onChange={(e) => handleInputChange(e, isCompetitor)}
+                  step="any"
+                  className="input-gcf font-mono"
+                  placeholder="1000"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="label-gcf">Custo (R$ / L ou kg)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
                   <input
                     type="number"
-                    name="Dose_ha_ml_ou_g"
-                    value={data.Dose_ha_ml_ou_g}
-                    onChange={(e) => handleInputChange(e, isCompetitor)}
+                    name="Custo_R$_por_L_ou_kg"
+                    value={isCompetitor ? competitorCusto : data['Custo_R$_por_L_ou_kg']}
+                    onChange={(e) => isCompetitor ? setCompetitorCusto(e.target.value) : handleInputChange(e, isCompetitor)}
                     step="any"
-                    className="input-gcf font-mono"
+                    className="input-gcf pl-10 font-mono"
+                    placeholder="200"
                   />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="label-gcf">Custo (R$ / L ou kg)</label>
-                  <div className="relative">
-                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
-                    <input
-                      type="number"
-                      name="Custo_R$_por_L_ou_kg"
-                      value={isCompetitor ? competitorCusto : data['Custo_R$_por_L_ou_kg']}
-                      onChange={(e) => isCompetitor ? setCompetitorCusto(e.target.value) : handleInputChange(e, isCompetitor)}
-                      step="any"
-                      className="input-gcf pl-10 font-mono"
-                    />
-                  </div>
                 </div>
               </div>
             </div>

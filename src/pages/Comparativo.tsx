@@ -57,7 +57,6 @@ interface Composicao {
 interface Microrganismo {
   id: string;
   composicoes: Composicao[];
-  custo: string;
   concentracaoTotal: string;
 }
 
@@ -421,10 +420,10 @@ export default function Comparativo() {
     {
       id: '1',
       composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-      custo: '',
       concentracaoTotal: '',
     }
   ]);
+  const [competitorCusto, setCompetitorCusto] = useState('');
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportContactData, setReportContactData] = useState<ReportContactData>({
@@ -485,7 +484,6 @@ export default function Comparativo() {
         newMicros.push({
           id: (i + 1).toString(),
           composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-          custo: '',
           concentracaoTotal: '',
         });
       }
@@ -493,12 +491,6 @@ export default function Comparativo() {
     } else if (newQuantity < currentLength) {
       setCompetitorMicrorganismos(competitorMicrorganismos.slice(0, newQuantity));
     }
-  };
-
-  const updateMicrorganismo = (microId: string, field: 'custo', value: string) => {
-    setCompetitorMicrorganismos(prev => prev.map(micro =>
-      micro.id === microId ? { ...micro, [field]: value } : micro
-    ));
   };
 
   const addComposicao = (microId: string) => {
@@ -724,9 +716,9 @@ export default function Comparativo() {
     setCompetitorMicrorganismos([{
       id: '1',
       composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-      custo: '',
       concentracaoTotal: '',
     }]);
+    setCompetitorCusto('');
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
@@ -1336,21 +1328,6 @@ export default function Comparativo() {
                             </div>
                           )}
 
-                          <div className="space-y-2">
-                            <label className="label-gcf">Custo (R$ / L ou kg)</label>
-                            <div className="relative">
-                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
-                              <input
-                                type="number"
-                                value={micro.custo}
-                                onChange={(e) => updateMicrorganismo(micro.id, 'custo', e.target.value)}
-                                className="input-gcf pl-10 font-mono"
-                                placeholder="200"
-                                step="any"
-                              />
-                            </div>
-                          </div>
-
                           {micro.concentracaoTotal && data.Dose_ha_ml_ou_g && (
                             <div className="space-y-2">
                               <label className="label-gcf">UFC ou Conídios / ha</label>
@@ -1411,8 +1388,8 @@ export default function Comparativo() {
                     <input
                       type="number"
                       name="Custo_R$_por_L_ou_kg"
-                      value={data['Custo_R$_por_L_ou_kg']}
-                      onChange={(e) => handleInputChange(e, isCompetitor)}
+                      value={isCompetitor ? competitorCusto : data['Custo_R$_por_L_ou_kg']}
+                      onChange={(e) => isCompetitor ? setCompetitorCusto(e.target.value) : handleInputChange(e, isCompetitor)}
                       step="any"
                       className="input-gcf pl-10 font-mono"
                     />

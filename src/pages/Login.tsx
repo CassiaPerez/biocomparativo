@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, LogIn, AlertCircle, Leaf } from 'lucide-react';
+import { Lock, Mail, LogIn, CircleAlert as AlertCircle, Leaf } from 'lucide-react';
 import { supabase, supabaseEnabled } from '../lib/supabase';
 
 const gcfLogo = '/gcf_logo.png';

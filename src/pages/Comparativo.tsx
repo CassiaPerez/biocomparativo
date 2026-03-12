@@ -47,6 +47,13 @@ interface CalculatedValues {
 
 type SciParts = { mantissa: string; exponent: string };
 
+interface Composicao {
+  id: string;
+  mantissa: string;
+  exponent: string;
+  valor: string;
+}
+
 interface ReportContactData {
   nomeCliente: string;
   nomeVendedor: string;
@@ -402,6 +409,10 @@ export default function Comparativo() {
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
+  const [competitorComposicoes, setCompetitorComposicoes] = useState<Composicao[]>([
+    { id: '1', mantissa: '', exponent: '', valor: '' }
+  ]);
+
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportContactData, setReportContactData] = useState<ReportContactData>({
     nomeCliente: '',
@@ -449,6 +460,75 @@ export default function Comparativo() {
       setLoadingProducts(false);
     }
   };
+
+  const addComposicao = () => {
+    const newId = (Math.max(...competitorComposicoes.map(c => parseInt(c.id)), 0) + 1).toString();
+    setCompetitorComposicoes([...competitorComposicoes, { id: newId, mantissa: '', exponent: '', valor: '' }]);
+  };
+
+  const removeComposicao = (id: string) => {
+    if (competitorComposicoes.length > 1) {
+      setCompetitorComposicoes(competitorComposicoes.filter(c => c.id !== id));
+    }
+  };
+
+  const updateComposicao = (id: string, field: 'mantissa' | 'exponent', value: string) => {
+    setCompetitorComposicoes(prev => prev.map(comp => {
+      if (comp.id !== id) return comp;
+
+      const updated = { ...comp, [field]: value };
+
+      if (updated.mantissa && updated.exponent) {
+        const mantissaNumber = updated.mantissa.replace(',', '.');
+        const scientificValue = `${mantissaNumber}e${updated.exponent}`;
+        updated.valor = scientificValue;
+      } else {
+        updated.valor = '';
+      }
+
+      return updated;
+    }));
+  };
+
+  const calculateTotalConcentration = (): string => {
+    try {
+      let sum = new Decimal(0);
+
+      for (const comp of competitorComposicoes) {
+        if (comp.valor) {
+          const valor = new Decimal(comp.valor);
+          const convertedValue = competitorConcentrationUnit === 'l'
+            ? valor.dividedBy(1000)
+            : valor;
+          sum = sum.plus(convertedValue);
+        }
+      }
+
+      return sum.isZero() ? '' : sum.toString();
+    } catch {
+      return '';
+    }
+  };
+
+  useEffect(() => {
+    const total = calculateTotalConcentration();
+    setCompData(prev => ({
+      ...prev,
+      Concentracao_por_ml_ou_g: total,
+    }));
+
+    if (total && competitorComposicoes.length > 0) {
+      try {
+        const totalDec = new Decimal(total);
+        const sciStr = totalDec.toExponential();
+        const [m, e] = sciStr.split('e');
+        const exp = (e || '0').replace('+', '');
+        setCompConcParts({ mantissa: m, exponent: exp });
+      } catch {
+        setCompConcParts({ mantissa: '', exponent: '' });
+      }
+    }
+  }, [competitorComposicoes, competitorConcentrationUnit]);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -506,15 +586,6 @@ export default function Comparativo() {
 
   const handleCompetitorConcentrationUnitChange = (unit: CompetitorConcentrationUnit) => {
     setCompetitorConcentrationUnit(unit);
-
-    const rawScientificValue = sciPartsToValue(compConcParts);
-
-    setCompData((prev) => ({
-      ...prev,
-      Concentracao_por_ml_ou_g: rawScientificValue
-        ? convertCompetitorConcentrationToMl(rawScientificValue, unit)
-        : prev.Concentracao_por_ml_ou_g,
-    }));
   };
 
   const handleInputChange = (
@@ -566,6 +637,7 @@ export default function Comparativo() {
     setCropConcParts({ mantissa: '', exponent: '' });
     setCompConcParts({ mantissa: '', exponent: '' });
     setCompetitorConcentrationUnit('');
+    setCompetitorComposicoes([{ id: '1', mantissa: '', exponent: '', valor: '' }]);
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
@@ -1056,29 +1128,103 @@ export default function Comparativo() {
                       </select>
                     </div>
 
-                    <div>
-                      <ScientificInput
-                        value={data.Concentracao_por_ml_ou_g}
-                        onChange={(val) =>
-                          handleInputChange({ target: { name: 'Concentracao_por_ml_ou_g', value: val } }, isCompetitor)
-                        }
-                        onPartsChange={(m, e) => {
-                          if (isCompetitor) setCompConcParts({ mantissa: m, exponent: e });
-                          else setCropConcParts({ mantissa: m, exponent: e });
-                        }}
-                        preserveUserDisplay
-                        emitOnSync={false}
-                        className="w-full font-mono text-gcf-black"
-                        placeholder="Ex: 2"
-                      />
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-gcf-black/60 uppercase tracking-wider">
+                          Composições {competitorComposicoes.length > 1 && `(${competitorComposicoes.length})`}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={addComposicao}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gcf-green/10 hover:bg-gcf-green/20 text-gcf-green rounded-[8px] text-xs font-bold uppercase tracking-wider transition-all"
+                          title="Adicionar composição"
+                        >
+                          <Plus size={14} />
+                          Adicionar
+                        </button>
+                      </div>
+
+                      {competitorComposicoes.map((comp, index) => (
+                        <div key={comp.id} className="space-y-2 p-4 bg-gcf-black/5 rounded-[12px] border border-gcf-black/10">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-gcf-black/60 uppercase tracking-wider">
+                              Composição {index + 1}
+                            </span>
+                            {competitorComposicoes.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeComposicao(comp.id)}
+                                className="p-1 hover:bg-red-100 text-red-600 rounded-[6px] transition-colors"
+                                title="Remover composição"
+                              >
+                                <Minus size={14} />
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
+                                Mantissa
+                              </label>
+                              <input
+                                type="text"
+                                value={comp.mantissa}
+                                onChange={(e) => updateComposicao(comp.id, 'mantissa', e.target.value)}
+                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[8px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
+                                placeholder="Ex: 21"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
+                                Expoente
+                              </label>
+                              <input
+                                type="text"
+                                value={comp.exponent}
+                                onChange={(e) => updateComposicao(comp.id, 'exponent', e.target.value)}
+                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[8px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
+                                placeholder="Ex: 12"
+                              />
+                            </div>
+                          </div>
+
+                          {comp.mantissa && comp.exponent && (
+                            <div className="mt-2 px-3 py-2 bg-white rounded-[8px] border border-gcf-green/20">
+                              <p className="text-xs font-bold text-gcf-black/40 uppercase tracking-wider mb-1">Valor</p>
+                              <p className="text-sm font-mono text-gcf-green">
+                                {comp.mantissa} × 10<sup>{comp.exponent}</sup>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {competitorComposicoes.some(c => c.valor) && (
+                        <div className="p-4 bg-gcf-green/10 rounded-[12px] border-2 border-gcf-green/20">
+                          <p className="text-xs font-bold text-gcf-green uppercase tracking-wider mb-2">
+                            Concentração Total
+                          </p>
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-gcf-green font-mono">
+                              {compConcParts.mantissa}
+                            </span>
+                            <span className="text-sm text-gcf-green/60">× 10</span>
+                            <sup className="text-lg font-bold text-gcf-green">{compConcParts.exponent}</sup>
+                          </div>
+                          <p className="text-[10px] text-gcf-black/40 mt-2 font-mono">
+                            = {data.Concentracao_por_ml_ou_g ? new Decimal(data.Concentracao_por_ml_ou_g).toExponential() : '0'}
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     <p className={`text-xs ${competitorUnitMissing ? 'text-red-600 font-semibold' : 'text-gcf-black/60'}`}>
                       {competitorUnitMissing
                         ? 'Selecione mL ou L antes de calcular ou gerar o relatório.'
                         : competitorConcentrationUnit === 'l'
-                          ? 'A concentração informada por litro é convertida automaticamente para mL na calculadora e no relatório.'
-                          : 'A concentração informada já é tratada como valor por mL na calculadora e no relatório.'}
+                          ? 'As concentrações informadas por litro são convertidas automaticamente para mL e somadas.'
+                          : 'As concentrações informadas já são tratadas como valores por mL e somadas automaticamente.'}
                     </p>
                   </>
                 )}

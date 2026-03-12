@@ -57,7 +57,6 @@ interface Composicao {
 interface Microrganismo {
   id: string;
   composicoes: Composicao[];
-  dose: string;
   custo: string;
   concentracaoTotal: string;
 }
@@ -422,7 +421,6 @@ export default function Comparativo() {
     {
       id: '1',
       composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-      dose: '',
       custo: '',
       concentracaoTotal: '',
     }
@@ -487,7 +485,6 @@ export default function Comparativo() {
         newMicros.push({
           id: (i + 1).toString(),
           composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-          dose: '',
           custo: '',
           concentracaoTotal: '',
         });
@@ -498,7 +495,7 @@ export default function Comparativo() {
     }
   };
 
-  const updateMicrorganismo = (microId: string, field: 'dose' | 'custo', value: string) => {
+  const updateMicrorganismo = (microId: string, field: 'custo', value: string) => {
     setCompetitorMicrorganismos(prev => prev.map(micro =>
       micro.id === microId ? { ...micro, [field]: value } : micro
     ));
@@ -727,7 +724,6 @@ export default function Comparativo() {
     setCompetitorMicrorganismos([{
       id: '1',
       composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
-      dose: '',
       custo: '',
       concentracaoTotal: '',
     }]);
@@ -1340,36 +1336,22 @@ export default function Comparativo() {
                             </div>
                           )}
 
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="label-gcf">Dose (mL ou g / ha)</label>
+                          <div className="space-y-2">
+                            <label className="label-gcf">Custo (R$ / L ou kg)</label>
+                            <div className="relative">
+                              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
                               <input
                                 type="number"
-                                value={micro.dose}
-                                onChange={(e) => updateMicrorganismo(micro.id, 'dose', e.target.value)}
-                                className="input-gcf font-mono"
-                                placeholder="1000"
+                                value={micro.custo}
+                                onChange={(e) => updateMicrorganismo(micro.id, 'custo', e.target.value)}
+                                className="input-gcf pl-10 font-mono"
+                                placeholder="200"
                                 step="any"
                               />
                             </div>
-
-                            <div className="space-y-2">
-                              <label className="label-gcf">Custo (R$ / L ou kg)</label>
-                              <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gcf-black/40 font-bold text-sm">R$</span>
-                                <input
-                                  type="number"
-                                  value={micro.custo}
-                                  onChange={(e) => updateMicrorganismo(micro.id, 'custo', e.target.value)}
-                                  className="input-gcf pl-10 font-mono"
-                                  placeholder="200"
-                                  step="any"
-                                />
-                              </div>
-                            </div>
                           </div>
 
-                          {micro.concentracaoTotal && micro.dose && (
+                          {micro.concentracaoTotal && data.Dose_ha_ml_ou_g && (
                             <div className="space-y-2">
                               <label className="label-gcf">UFC ou Conídios / ha</label>
                               <div className="input-gcf min-h-[64px] flex items-center justify-between gap-3 bg-gcf-black/[0.02]">
@@ -1377,7 +1359,7 @@ export default function Comparativo() {
                                   {(() => {
                                     try {
                                       const conc = new Decimal(micro.concentracaoTotal);
-                                      const dose = new Decimal(micro.dose);
+                                      const dose = new Decimal(data.Dose_ha_ml_ou_g);
                                       const ufcHa = conc.times(dose);
                                       const [m, e] = ufcHa.toExponential(2).split('e');
                                       return (

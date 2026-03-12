@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Download, Package, ArrowLeft, Leaf } from 'lucide-react';
+import { Settings, Download, Package, ArrowLeft, Leaf, LogOut, User } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 import DownloadsView from '../components/DownloadsView';
 import ProductsManager from '../components/ProductsManager';
 
@@ -11,6 +12,12 @@ const gcfLogo = '/gcf_logo.png';
 export default function Admin() {
   const [activeTab, setActiveTab] = useState<TabType>('downloads');
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   return (
     <div className="min-h-screen bg-gcf-offwhite">
@@ -31,13 +38,31 @@ export default function Admin() {
               </div>
             </div>
 
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-4 py-2 bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black rounded-[12px] font-semibold text-sm transition-colors"
-            >
-              <ArrowLeft size={16} />
-              Voltar ao Comparativo
-            </button>
+            <div className="flex items-center gap-3">
+              {user && (
+                <div className="hidden sm:flex items-center gap-2 px-3 py-2 bg-gcf-green/10 rounded-[12px]">
+                  <User size={16} className="text-gcf-green" />
+                  <span className="text-sm font-medium text-gcf-black">{user.email}</span>
+                </div>
+              )}
+
+              <button
+                onClick={() => navigate('/')}
+                className="flex items-center gap-2 px-4 py-2 bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black rounded-[12px] font-semibold text-sm transition-colors"
+              >
+                <ArrowLeft size={16} />
+                <span className="hidden sm:inline">Voltar ao Comparativo</span>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-[12px] font-semibold text-sm transition-colors"
+                title="Sair"
+              >
+                <LogOut size={16} />
+                <span className="hidden sm:inline">Sair</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>

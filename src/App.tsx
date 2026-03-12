@@ -93,7 +93,7 @@ const CROPFIELD_PRODUCT_OPTIONS: ProductOption[] = [
   { nome: 'PUMIGUARD', concentracaoLabel: '2×10⁹', concentracaoValor: '2e9', mantissa: '2', exponent: '9' },
   { nome: 'CHOLLA', concentracaoLabel: '3×10⁸', concentracaoValor: '3e8', mantissa: '3', exponent: '8' },
   { nome: 'CROPBIO PHOS', concentracaoLabel: '4×10⁸', concentracaoValor: '4e8', mantissa: '4', exponent: '8' },
-  { nome: 'CROPBIO SOJA', concentracaoLabel: '7,0×10¹⁰', concentracaoValor: '7.0e10', mantissa: '7,0', exponent: '10' },
+  { nome: 'CROPBIO SOJA', concentracaoLabel: '7,0×10⁹', concentracaoValor: '7.0e10', mantissa: '7,0', exponent: '10' },
   { nome: 'CROPBIO AZOS', concentracaoLabel: '4×10⁸', concentracaoValor: '4e8', mantissa: '4', exponent: '8' },
   { nome: 'CROPBIO FEIJÃO', concentracaoLabel: '3×10⁹', concentracaoValor: '3e9', mantissa: '3', exponent: '9' },
   { nome: 'CROPBIO TURFA', concentracaoLabel: '5×10⁹', concentracaoValor: '5e9', mantissa: '5', exponent: '9' },

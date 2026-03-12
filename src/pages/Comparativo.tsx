@@ -54,6 +54,15 @@ interface Composicao {
   valor: string;
 }
 
+interface Microrganismo {
+  id: string;
+  nome: string;
+  composicoes: Composicao[];
+  dose: string;
+  custo: string;
+  concentracaoTotal: string;
+}
+
 interface ReportContactData {
   nomeCliente: string;
   nomeVendedor: string;
@@ -409,8 +418,15 @@ export default function Comparativo() {
   const [cropConcParts, setCropConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
   const [compConcParts, setCompConcParts] = useState<SciParts>({ mantissa: '', exponent: '' });
 
-  const [competitorComposicoes, setCompetitorComposicoes] = useState<Composicao[]>([
-    { id: '1', mantissa: '', exponent: '', valor: '' }
+  const [competitorMicrorganismos, setCompetitorMicrorganismos] = useState<Microrganismo[]>([
+    {
+      id: '1',
+      nome: '',
+      composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
+      dose: '',
+      custo: '',
+      concentracaoTotal: '',
+    }
   ]);
 
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -461,74 +477,141 @@ export default function Comparativo() {
     }
   };
 
-  const addComposicao = () => {
-    const newId = (Math.max(...competitorComposicoes.map(c => parseInt(c.id)), 0) + 1).toString();
-    setCompetitorComposicoes([...competitorComposicoes, { id: newId, mantissa: '', exponent: '', valor: '' }]);
+  const addMicrorganismo = () => {
+    const newId = (Math.max(...competitorMicrorganismos.map(m => parseInt(m.id)), 0) + 1).toString();
+    setCompetitorMicrorganismos([...competitorMicrorganismos, {
+      id: newId,
+      nome: '',
+      composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
+      dose: '',
+      custo: '',
+      concentracaoTotal: '',
+    }]);
   };
 
-  const removeComposicao = (id: string) => {
-    if (competitorComposicoes.length > 1) {
-      setCompetitorComposicoes(competitorComposicoes.filter(c => c.id !== id));
+  const removeMicrorganismo = (id: string) => {
+    if (competitorMicrorganismos.length > 1) {
+      setCompetitorMicrorganismos(competitorMicrorganismos.filter(m => m.id !== id));
     }
   };
 
-  const updateComposicao = (id: string, field: 'mantissa' | 'exponent', value: string) => {
-    setCompetitorComposicoes(prev => prev.map(comp => {
-      if (comp.id !== id) return comp;
+  const updateMicrorganismo = (microId: string, field: 'nome' | 'dose' | 'custo', value: string) => {
+    setCompetitorMicrorganismos(prev => prev.map(micro =>
+      micro.id === microId ? { ...micro, [field]: value } : micro
+    ));
+  };
 
-      const updated = { ...comp, [field]: value };
+  const addComposicao = (microId: string) => {
+    setCompetitorMicrorganismos(prev => prev.map(micro => {
+      if (micro.id !== microId) return micro;
 
-      if (updated.mantissa && updated.exponent) {
-        const mantissaNumber = updated.mantissa.replace(',', '.');
-        const scientificValue = `${mantissaNumber}e${updated.exponent}`;
-        updated.valor = scientificValue;
-      } else {
-        updated.valor = '';
-      }
-
-      return updated;
+      const newCompId = (Math.max(...micro.composicoes.map(c => parseInt(c.id)), 0) + 1).toString();
+      return {
+        ...micro,
+        composicoes: [...micro.composicoes, { id: newCompId, mantissa: '', exponent: '', valor: '' }]
+      };
     }));
   };
 
-  const calculateTotalConcentration = (): string => {
-    try {
-      let sum = new Decimal(0);
+  const removeComposicao = (microId: string, compId: string) => {
+    setCompetitorMicrorganismos(prev => prev.map(micro => {
+      if (micro.id !== microId) return micro;
+      if (micro.composicoes.length <= 1) return micro;
 
-      for (const comp of competitorComposicoes) {
-        if (comp.valor) {
-          const valor = new Decimal(comp.valor);
-          const convertedValue = competitorConcentrationUnit === 'l'
-            ? valor.dividedBy(1000)
-            : valor;
-          sum = sum.plus(convertedValue);
+      return {
+        ...micro,
+        composicoes: micro.composicoes.filter(c => c.id !== compId)
+      };
+    }));
+  };
+
+  const updateComposicao = (microId: string, compId: string, field: 'mantissa' | 'exponent', value: string) => {
+    setCompetitorMicrorganismos(prev => prev.map(micro => {
+      if (micro.id !== microId) return micro;
+
+      const updatedComposicoes = micro.composicoes.map(comp => {
+        if (comp.id !== compId) return comp;
+
+        const updated = { ...comp, [field]: value };
+
+        if (updated.mantissa && updated.exponent) {
+          const mantissaNumber = updated.mantissa.replace(',', '.');
+          const scientificValue = `${mantissaNumber}e${updated.exponent}`;
+          updated.valor = scientificValue;
+        } else {
+          updated.valor = '';
         }
+
+        return updated;
+      });
+
+      let concentracaoTotal = '';
+      try {
+        let sum = new Decimal(0);
+        for (const comp of updatedComposicoes) {
+          if (comp.valor) {
+            const valor = new Decimal(comp.valor);
+            const convertedValue = competitorConcentrationUnit === 'l'
+              ? valor.dividedBy(1000)
+              : valor;
+            sum = sum.plus(convertedValue);
+          }
+        }
+        concentracaoTotal = sum.isZero() ? '' : sum.toString();
+      } catch {
+        concentracaoTotal = '';
       }
 
-      return sum.isZero() ? '' : sum.toString();
-    } catch {
-      return '';
-    }
+      return {
+        ...micro,
+        composicoes: updatedComposicoes,
+        concentracaoTotal,
+      };
+    }));
   };
 
   useEffect(() => {
-    const total = calculateTotalConcentration();
-    setCompData(prev => ({
-      ...prev,
-      Concentracao_por_ml_ou_g: total,
-    }));
+    try {
+      let totalConcentracao = new Decimal(0);
+      let totalDose = new Decimal(0);
+      let totalCusto = new Decimal(0);
+      let totalUFCHa = new Decimal(0);
 
-    if (total && competitorComposicoes.length > 0) {
-      try {
-        const totalDec = new Decimal(total);
-        const sciStr = totalDec.toExponential();
+      for (const micro of competitorMicrorganismos) {
+        if (micro.concentracaoTotal && micro.dose) {
+          const conc = new Decimal(micro.concentracaoTotal);
+          const dose = new Decimal(micro.dose || 0);
+          const custo = new Decimal(micro.custo || 0);
+
+          const ufcHa = conc.times(dose);
+          totalUFCHa = totalUFCHa.plus(ufcHa);
+
+          totalDose = totalDose.plus(dose);
+          totalCusto = totalCusto.plus(custo);
+        }
+      }
+
+      const concentracaoMedia = totalDose.isZero() ? new Decimal(0) : totalUFCHa.dividedBy(totalDose);
+
+      setCompData(prev => ({
+        ...prev,
+        Concentracao_por_ml_ou_g: concentracaoMedia.toString(),
+        Dose_ha_ml_ou_g: totalDose.toString(),
+        'Custo_R$_por_L_ou_kg': totalCusto.toString(),
+      }));
+
+      if (!concentracaoMedia.isZero()) {
+        const sciStr = concentracaoMedia.toExponential();
         const [m, e] = sciStr.split('e');
         const exp = (e || '0').replace('+', '');
         setCompConcParts({ mantissa: m, exponent: exp });
-      } catch {
+      } else {
         setCompConcParts({ mantissa: '', exponent: '' });
       }
+    } catch (error) {
+      console.error('Erro ao calcular totais:', error);
     }
-  }, [competitorComposicoes, competitorConcentrationUnit]);
+  }, [competitorMicrorganismos, competitorConcentrationUnit]);
 
   const calculate = (data: BiologicoRecord): CalculatedValues => {
     try {
@@ -637,7 +720,14 @@ export default function Comparativo() {
     setCropConcParts({ mantissa: '', exponent: '' });
     setCompConcParts({ mantissa: '', exponent: '' });
     setCompetitorConcentrationUnit('');
-    setCompetitorComposicoes([{ id: '1', mantissa: '', exponent: '', valor: '' }]);
+    setCompetitorMicrorganismos([{
+      id: '1',
+      nome: '',
+      composicoes: [{ id: '1', mantissa: '', exponent: '', valor: '' }],
+      dose: '',
+      custo: '',
+      concentracaoTotal: '',
+    }]);
   };
 
   const openReportModal = () => setIsReportModalOpen(true);
@@ -1128,95 +1218,205 @@ export default function Comparativo() {
                       </select>
                     </div>
 
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div className="flex items-center justify-between">
                         <label className="text-xs font-bold text-gcf-black/60 uppercase tracking-wider">
-                          Composições {competitorComposicoes.length > 1 && `(${competitorComposicoes.length})`}
+                          Microrganismos {competitorMicrorganismos.length > 1 && `(${competitorMicrorganismos.length})`}
                         </label>
                         <button
                           type="button"
-                          onClick={addComposicao}
+                          onClick={addMicrorganismo}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-gcf-green/10 hover:bg-gcf-green/20 text-gcf-green rounded-[8px] text-xs font-bold uppercase tracking-wider transition-all"
-                          title="Adicionar composição"
+                          title="Adicionar microrganismo"
                         >
                           <Plus size={14} />
-                          Adicionar
+                          Adicionar Microrganismo
                         </button>
                       </div>
 
-                      {competitorComposicoes.map((comp, index) => (
-                        <div key={comp.id} className="space-y-2 p-4 bg-gcf-black/5 rounded-[12px] border border-gcf-black/10">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-bold text-gcf-black/60 uppercase tracking-wider">
-                              Composição {index + 1}
+                      {competitorMicrorganismos.map((micro, microIndex) => (
+                        <div key={micro.id} className="p-5 bg-gcf-black/5 rounded-[16px] border-2 border-gcf-black/10 space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-gcf-black uppercase tracking-wider">
+                              Microrganismo {microIndex + 1}
                             </span>
-                            {competitorComposicoes.length > 1 && (
+                            {competitorMicrorganismos.length > 1 && (
                               <button
                                 type="button"
-                                onClick={() => removeComposicao(comp.id)}
-                                className="p-1 hover:bg-red-100 text-red-600 rounded-[6px] transition-colors"
-                                title="Remover composição"
+                                onClick={() => removeMicrorganismo(micro.id)}
+                                className="p-1.5 hover:bg-red-100 text-red-600 rounded-[8px] transition-colors"
+                                title="Remover microrganismo"
                               >
-                                <Minus size={14} />
+                                <Minus size={16} />
                               </button>
                             )}
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
+                              Nome do Microrganismo
+                            </label>
+                            <input
+                              type="text"
+                              value={micro.nome}
+                              onChange={(e) => updateMicrorganismo(micro.id, 'nome', e.target.value)}
+                              className="w-full px-3 py-2 border border-gcf-black/20 rounded-[10px] text-sm focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
+                              placeholder="Ex: Trichoderma"
+                            />
+                          </div>
+
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
                               <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
-                                Mantissa
+                                Composições
+                              </label>
+                              <button
+                                type="button"
+                                onClick={() => addComposicao(micro.id)}
+                                className="flex items-center gap-1 px-2 py-1 bg-gcf-green/10 hover:bg-gcf-green/20 text-gcf-green rounded-[6px] text-[10px] font-bold uppercase tracking-wider transition-all"
+                                title="Adicionar composição"
+                              >
+                                <Plus size={12} />
+                                Composição
+                              </button>
+                            </div>
+
+                            {micro.composicoes.map((comp, compIndex) => (
+                              <div key={comp.id} className="p-3 bg-white rounded-[10px] border border-gcf-black/10">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-wider">
+                                    Composição {compIndex + 1}
+                                  </span>
+                                  {micro.composicoes.length > 1 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeComposicao(micro.id, comp.id)}
+                                      className="p-0.5 hover:bg-red-100 text-red-600 rounded-[4px] transition-colors"
+                                      title="Remover composição"
+                                    >
+                                      <Minus size={12} />
+                                    </button>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-gcf-black/40 uppercase tracking-wider">
+                                      Mantissa
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={comp.mantissa}
+                                      onChange={(e) => updateComposicao(micro.id, comp.id, 'mantissa', e.target.value)}
+                                      className="w-full px-2 py-1.5 border border-gcf-black/20 rounded-[6px] text-xs font-mono focus:border-gcf-green focus:ring-1 focus:ring-gcf-green/20 outline-none transition-all"
+                                      placeholder="21"
+                                    />
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-gcf-black/40 uppercase tracking-wider">
+                                      Expoente
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={comp.exponent}
+                                      onChange={(e) => updateComposicao(micro.id, comp.id, 'exponent', e.target.value)}
+                                      className="w-full px-2 py-1.5 border border-gcf-black/20 rounded-[6px] text-xs font-mono focus:border-gcf-green focus:ring-1 focus:ring-gcf-green/20 outline-none transition-all"
+                                      placeholder="12"
+                                    />
+                                  </div>
+                                </div>
+
+                                {comp.mantissa && comp.exponent && (
+                                  <div className="mt-2 text-xs font-mono text-gcf-green">
+                                    {comp.mantissa} × 10<sup>{comp.exponent}</sup>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {micro.concentracaoTotal && (
+                            <div className="p-3 bg-gcf-green/10 rounded-[10px] border border-gcf-green/20">
+                              <p className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-wider mb-1">
+                                Concentração Total (Calculada)
+                              </p>
+                              <p className="text-sm font-mono text-gcf-green">
+                                {(() => {
+                                  try {
+                                    const dec = new Decimal(micro.concentracaoTotal);
+                                    const [m, e] = dec.toExponential().split('e');
+                                    return (
+                                      <>
+                                        {m} × 10<sup>{(e || '0').replace('+', '')}</sup>
+                                      </>
+                                    );
+                                  } catch {
+                                    return '0';
+                                  }
+                                })()}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
+                                Dose (mL ou g / ha)
                               </label>
                               <input
-                                type="text"
-                                value={comp.mantissa}
-                                onChange={(e) => updateComposicao(comp.id, 'mantissa', e.target.value)}
-                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[8px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
-                                placeholder="Ex: 21"
+                                type="number"
+                                value={micro.dose}
+                                onChange={(e) => updateMicrorganismo(micro.id, 'dose', e.target.value)}
+                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[10px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
+                                placeholder="1000"
+                                step="any"
                               />
                             </div>
-                            <div className="space-y-1">
+
+                            <div className="space-y-2">
                               <label className="text-[10px] font-bold text-gcf-black/50 uppercase tracking-wider">
-                                Expoente
+                                Custo (R$ / L ou kg)
                               </label>
                               <input
-                                type="text"
-                                value={comp.exponent}
-                                onChange={(e) => updateComposicao(comp.id, 'exponent', e.target.value)}
-                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[8px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
-                                placeholder="Ex: 12"
+                                type="number"
+                                value={micro.custo}
+                                onChange={(e) => updateMicrorganismo(micro.id, 'custo', e.target.value)}
+                                className="w-full px-3 py-2 border border-gcf-black/20 rounded-[10px] text-sm font-mono focus:border-gcf-green focus:ring-2 focus:ring-gcf-green/20 outline-none transition-all"
+                                placeholder="200"
+                                step="any"
                               />
                             </div>
                           </div>
 
-                          {comp.mantissa && comp.exponent && (
-                            <div className="mt-2 px-3 py-2 bg-white rounded-[8px] border border-gcf-green/20">
-                              <p className="text-xs font-bold text-gcf-black/40 uppercase tracking-wider mb-1">Valor</p>
-                              <p className="text-sm font-mono text-gcf-green">
-                                {comp.mantissa} × 10<sup>{comp.exponent}</sup>
-                              </p>
+                          {micro.concentracaoTotal && micro.dose && (
+                            <div className="p-4 bg-white rounded-[12px] border-2 border-gcf-green/20">
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-wider">UFC ou Conídios / ha</span>
+                                <span className="text-[9px] font-bold bg-gcf-black/5 text-gcf-black/60 px-2 py-0.5 rounded-full border border-gcf-black/10 uppercase tracking-widest">
+                                  Automático
+                                </span>
+                              </div>
+                              <div className="text-lg font-bold font-mono text-gcf-green">
+                                {(() => {
+                                  try {
+                                    const conc = new Decimal(micro.concentracaoTotal);
+                                    const dose = new Decimal(micro.dose);
+                                    const ufcHa = conc.times(dose);
+                                    const [m, e] = ufcHa.toExponential(2).split('e');
+                                    return (
+                                      <>
+                                        {m.replace('.', ',')} × 10<sup>{(e || '0').replace('+', '')}</sup>
+                                      </>
+                                    );
+                                  } catch {
+                                    return '0';
+                                  }
+                                })()}
+                              </div>
                             </div>
                           )}
                         </div>
                       ))}
-
-                      {competitorComposicoes.some(c => c.valor) && (
-                        <div className="p-4 bg-gcf-green/10 rounded-[12px] border-2 border-gcf-green/20">
-                          <p className="text-xs font-bold text-gcf-green uppercase tracking-wider mb-2">
-                            Concentração Total
-                          </p>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-2xl font-bold text-gcf-green font-mono">
-                              {compConcParts.mantissa}
-                            </span>
-                            <span className="text-sm text-gcf-green/60">× 10</span>
-                            <sup className="text-lg font-bold text-gcf-green">{compConcParts.exponent}</sup>
-                          </div>
-                          <p className="text-[10px] text-gcf-black/40 mt-2 font-mono">
-                            = {data.Concentracao_por_ml_ou_g ? new Decimal(data.Concentracao_por_ml_ou_g).toExponential() : '0'}
-                          </p>
-                        </div>
-                      )}
                     </div>
 
                     <p className={`text-xs ${competitorUnitMissing ? 'text-red-600 font-semibold' : 'text-gcf-black/60'}`}>

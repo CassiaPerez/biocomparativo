@@ -1255,7 +1255,7 @@ export default function Comparativo() {
                             </div>
 
                             {micro.composicoes.map((comp, compIndex) => (
-                              <div key={comp.id} className="p-4 bg-white rounded-[12px] border border-gcf-black/10 space-y-3">
+                              <div key={comp.id} className="space-y-3">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs font-bold text-gcf-black/60 uppercase tracking-wider">
                                     Composição {compIndex + 1}
@@ -1272,36 +1272,29 @@ export default function Comparativo() {
                                   )}
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className="space-y-2">
-                                    <label className="label-gcf">Mantissa</label>
+                                <div className="flex items-center gap-3 p-4 bg-gcf-black/[0.02] rounded-[14px] border border-gcf-black/5">
+                                  <div className="flex-1">
                                     <input
                                       type="text"
                                       value={comp.mantissa}
                                       onChange={(e) => updateComposicao(micro.id, comp.id, 'mantissa', e.target.value)}
-                                      className="input-gcf font-mono"
-                                      placeholder="21"
+                                      className="w-full text-4xl font-bold text-gcf-black outline-none bg-transparent tracking-tighter placeholder-gcf-black/20 text-center"
+                                      placeholder="0"
                                     />
                                   </div>
-                                  <div className="space-y-2">
-                                    <label className="label-gcf">Expoente</label>
+
+                                  <div className="text-2xl text-gcf-black/30 font-serif italic select-none">× 10</div>
+
+                                  <div className="w-32">
                                     <input
                                       type="text"
                                       value={comp.exponent}
                                       onChange={(e) => updateComposicao(micro.id, comp.id, 'exponent', e.target.value)}
-                                      className="input-gcf font-mono"
-                                      placeholder="12"
+                                      className="w-full text-2xl font-bold outline-none border rounded-[12px] text-center py-2 bg-gcf-black/5 border-gcf-black/10 text-gcf-black/60 focus:border-gcf-black/30 placeholder-gcf-black/20"
+                                      placeholder="0"
                                     />
                                   </div>
                                 </div>
-
-                                {comp.mantissa && comp.exponent && (
-                                  <div className="px-3 py-2 bg-gcf-green/10 rounded-[8px] border border-gcf-green/20">
-                                    <p className="text-xs font-mono text-gcf-green">
-                                      {comp.mantissa} × 10<sup>{comp.exponent}</sup>
-                                    </p>
-                                  </div>
-                                )}
                               </div>
                             ))}
                           </div>

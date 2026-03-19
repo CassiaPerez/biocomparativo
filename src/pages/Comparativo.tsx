@@ -73,7 +73,7 @@ interface ReportLocationData {
   capturadoEm: string;
 }
 
-type CompetitorConcentrationUnit = '' | 'ml' | 'l';
+type CompetitorConcentrationUnit = '' | 'ml_g' | 'l_kg';
 
 const INITIAL_STATE_CROPFIELD: BiologicoRecord = {
   Produto: '',
@@ -543,7 +543,7 @@ export default function Comparativo() {
         for (const comp of updatedComposicoes) {
           if (comp.valor) {
             const valor = new Decimal(comp.valor);
-            const convertedValue = competitorConcentrationUnit === 'l'
+            const convertedValue = competitorConcentrationUnit === 'l_kg'
               ? valor.dividedBy(1000)
               : valor;
             sum = sum.plus(convertedValue);
@@ -655,7 +655,7 @@ export default function Comparativo() {
 
     try {
       const decimalValue = new Decimal(value);
-      return unit === 'l' ? decimalValue.dividedBy(1000).toString() : decimalValue.toString();
+      return unit === 'l_kg' ? decimalValue.dividedBy(1000).toString() : decimalValue.toString();
     } catch {
       return value;
     }
@@ -1203,11 +1203,11 @@ export default function Comparativo() {
                         onChange={(e) => handleCompetitorConcentrationUnitChange(e.target.value as CompetitorConcentrationUnit)}
                         className="input-gcf"
                         aria-label="Unidade da concentração do concorrente"
-                        title="Selecione se a concentração foi informada em mL ou L"
+                        title="Selecione se a concentração foi informada em mL/g ou L/kg"
                       >
-                        <option value="">Selecione mL ou L</option>
-                        <option value="ml">mL</option>
-                        <option value="l">L</option>
+                        <option value="">Selecione ml / g ou L / KG</option>
+                        <option value="ml_g">ml / g</option>
+                        <option value="l_kg">L / KG</option>
                       </select>
                     </div>
 
@@ -1354,10 +1354,10 @@ export default function Comparativo() {
 
                     <p className={`text-xs ${competitorUnitMissing ? 'text-red-600 font-semibold' : 'text-gcf-black/60'}`}>
                       {competitorUnitMissing
-                        ? 'Selecione mL ou L antes de calcular ou gerar o relatório.'
-                        : competitorConcentrationUnit === 'l'
-                          ? 'As concentrações informadas por litro são convertidas automaticamente para mL e somadas.'
-                          : 'As concentrações informadas já são tratadas como valores por mL e somadas automaticamente.'}
+                        ? 'Selecione ml / g ou L / KG antes de calcular ou gerar o relatório.'
+                        : competitorConcentrationUnit === 'l_kg'
+                          ? 'As concentrações informadas por L / KG são convertidas automaticamente para ml / g e somadas.'
+                          : 'As concentrações informadas já são tratadas como valores por ml / g e somadas automaticamente.'}
                     </p>
                   </>
                 )}

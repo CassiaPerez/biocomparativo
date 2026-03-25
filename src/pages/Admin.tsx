@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Download, Package, ArrowLeft, Leaf, LogOut, User } from 'lucide-react';
+import { Settings, Download, Package, ArrowLeft, Leaf, LogOut, User, BarChart3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import DownloadsView from '../components/DownloadsView';
 import ProductsManager from '../components/ProductsManager';
@@ -45,6 +45,14 @@ export default function Admin() {
                   <span className="text-sm font-medium text-gcf-black">{user.email}</span>
                 </div>
               )}
+
+              <button
+                onClick={() => navigate('/relatorios')}
+                className="flex items-center gap-2 px-4 py-2 bg-gcf-green/10 hover:bg-gcf-green/20 text-gcf-green rounded-[12px] font-semibold text-sm transition-colors"
+              >
+                <BarChart3 size={16} />
+                <span className="hidden sm:inline">Relatórios</span>
+              </button>
 
               <button
                 onClick={() => navigate('/')}

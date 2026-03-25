@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Comparativo from './pages/Comparativo';
 import Admin from './pages/Admin';
 import Login from './pages/Login';
+import Relatorios from './pages/Relatorios';
 
 export default function App() {
   return (
@@ -17,6 +18,14 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Admin />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/relatorios"
+            element={
+              <ProtectedRoute>
+                <Relatorios />
               </ProtectedRoute>
             }
           />

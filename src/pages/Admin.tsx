@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Settings, Download, Package, ArrowLeft, Leaf, LogOut, User, BarChart3 } from 'lucide-react';
+import { Settings, Download, Package, ArrowLeft, Leaf, LogOut, User, ChartBar as BarChart3 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import DownloadsView from '../components/DownloadsView';
 import ProductsManager from '../components/ProductsManager';

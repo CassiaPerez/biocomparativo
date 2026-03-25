@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { RelatorioDownload } from '../types/database';
-import { Download, BarChart3, MapPin, Users, Package, ArrowLeft, Calendar, TrendingUp } from 'lucide-react';
+import { Download, ChartBar as BarChart3, MapPin, Users, Package, ArrowLeft, Calendar, TrendingUp } from 'lucide-react';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 

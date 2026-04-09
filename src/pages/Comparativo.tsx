@@ -95,6 +95,76 @@ const INITIAL_CALCULATED: CalculatedValues = {
   'Custo_R$_por_ha': new Decimal(0),
 };
 
+const trimTrailingZeros = (value: string) =>
+  value.replace(/(\.\d*?[1-9])0+$/, '$1').replace(/\.0+$/, '').replace(/\.$/, '');
+
+const formatDecimalDynamic = (value: Decimal | null | undefined, options?: { maxSmallDecimals?: number; scientificThreshold?: string }) => {
+  try {
+    if (!value || (value as any).isNaN?.()) return '0';
+    if (value.isZero()) return '0';
+
+    const maxSmallDecimals = options?.maxSmallDecimals ?? 10;
+    const scientificThreshold = new Decimal(options?.scientificThreshold ?? '0.000001');
+    const abs = value.abs();
+
+    if (abs.lessThan(scientificThreshold)) {
+      const [mRaw, eRaw = '0'] = value.toExponential(6).split('e');
+      const m = trimTrailingZeros(mRaw).replace('.', ',');
+      const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
+      return `${m}e${e}`;
+    }
+
+    if (abs.lessThan(1)) {
+      return trimTrailingZeros(value.toFixed(maxSmallDecimals)).replace('.', ',');
+    }
+
+    if (abs.lessThan(1000)) {
+      return trimTrailingZeros(value.toFixed(4)).replace('.', ',');
+    }
+
+    const parts = trimTrailingZeros(value.toFixed(0)).split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return parts.join(',');
+  } catch {
+    return '0';
+  }
+};
+
+const formatDecimalForPdf = (value: Decimal | null | undefined, options?: { maxSmallDecimals?: number; scientificThreshold?: string }) => {
+  try {
+    if (!value || (value as any).isNaN?.()) return '-';
+    if (value.isZero()) return '0';
+
+    const maxSmallDecimals = options?.maxSmallDecimals ?? 10;
+    const scientificThreshold = new Decimal(options?.scientificThreshold ?? '0.000001');
+    const abs = value.abs();
+
+    if (abs.lessThan(scientificThreshold)) {
+      const [mRaw, eRaw = '0'] = value.toExponential(6).split('e');
+      const m = trimTrailingZeros(mRaw);
+      const e = (eRaw || '0').replace('+', '').replace(/^0+(?=\d)/, '') || '0';
+      return `${m}e${e}`;
+    }
+
+    if (abs.lessThan(1)) {
+      return trimTrailingZeros(value.toFixed(maxSmallDecimals)).replace('.', ',');
+    }
+
+    return trimTrailingZeros(value.toFixed(4)).replace('.', ',');
+  } catch {
+    return '-';
+  }
+};
+
+const formatDiffMm2 = (value: Decimal | null | undefined) => {
+  try {
+    if (!value || (value as any).isNaN?.()) return '0';
+    if (value.isZero()) return '0';
+    return formatDecimalDynamic(value, { maxSmallDecimals: 10, scientificThreshold: '0.000001' });
+  } catch {
+    return '0';
+  }
+};
 
 // Scientific input
 const ScientificInput = ({
@@ -349,11 +419,12 @@ const BigNumberDisplay = ({
 }) => {
   const [showScientific, setShowScientific] = useState(false);
   const isLarge = value.gte(1e9);
+  const isVerySmall = !value.isZero() && value.abs().lessThan('0.000001');
   const isZero = value.isZero();
 
   useEffect(() => {
-    if (isLarge) setShowScientific(true);
-  }, [isLarge]);
+    if (isLarge || isVerySmall) setShowScientific(true);
+  }, [isLarge, isVerySmall]);
 
   const formatValue = () => {
     if (isZero) return isCurrency ? 'R$ 0,00' : '0';
@@ -374,17 +445,15 @@ const BigNumberDisplay = ({
       );
     }
 
-    const parts = value.toFixed(0).split('.');
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-    return parts.join(',');
+    return formatDecimalDynamic(value, { maxSmallDecimals: 10, scientificThreshold: '0.000001' });
   };
 
   return (
     <div className="flex flex-col">
-      {(label || (isLarge && !isCurrency)) && (
+      {(label || !isCurrency) && (
         <div className="flex justify-between items-center mb-2">
           {label && <span className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-[0.15em]">{label}</span>}
-          {isLarge && !isCurrency && (
+          {!isCurrency && (
             <button
               onClick={() => setShowScientific(!showScientific)}
               className="flex items-center gap-1.5 px-2 py-1 rounded-[8px] bg-gcf-black/5 hover:bg-gcf-black/10 text-gcf-black/60 text-[9px] font-bold uppercase tracking-widest transition-all active:scale-95 ml-auto"
@@ -1081,8 +1150,8 @@ export default function Comparativo() {
         ['UFC/ha', cropUfcPdf, compUfcPdf],
         [
           'UFC/mm² (superfície)',
-          fmtNumberPt(cropCalculated.UFC_ou_conidios_mm2_superficie, 2),
-          fmtNumberPt(compCalculated.UFC_ou_conidios_mm2_superficie, 2),
+          formatDecimalForPdf(cropCalculated.UFC_ou_conidios_mm2_superficie, { maxSmallDecimals: 10, scientificThreshold: '0.000001' }),
+          formatDecimalForPdf(compCalculated.UFC_ou_conidios_mm2_superficie, { maxSmallDecimals: 10, scientificThreshold: '0.000001' }),
         ],
         ['Custo/ha', fmtMoney(cropCalculated['Custo_R$_por_ha']), fmtMoney(compCalculated['Custo_R$_por_ha'])],
       ],
@@ -1105,7 +1174,7 @@ export default function Comparativo() {
       body: [
         ['Redução (%) UFC/ha', fmtPctSigned(reducUfc)],
         ['Redução (%) Custo/ha', fmtPctSigned(reducCusto)],
-        ['UFC/mm² (abs)', diffMm2Abs.toFixed(0)],
+        ['UFC/mm² (abs)', formatDecimalForPdf(diffMm2Abs, { maxSmallDecimals: 10, scientificThreshold: '0.000001' })],
         ['Custo por UFC/mm² (Cropfield)', fmtMoneyMicro(cropCostPerUfcMm2)],
         ['Custo por UFC/mm² (Concorrente)', fmtMoneyMicro(compCostPerUfcMm2)],
       ],
@@ -1713,7 +1782,7 @@ export default function Comparativo() {
                             isEqual ? 'text-gcf-black' : isConcorrenteSuperior ? 'text-gcf-green' : 'text-gcf-black/60'
                           }`}
                         >
-                          {isEqual ? '0' : diffAbs.toFixed(0)}
+                          {isEqual ? '0' : formatDiffMm2(diffAbs)}
                         </div>
                         <div className="text-[10px] font-bold text-gcf-black/40 uppercase tracking-widest">
                           {isEqual ? 'Sem diferença' : isConcorrenteSuperior ? 'Concorrente superior' : 'Concorrente inferior'}
